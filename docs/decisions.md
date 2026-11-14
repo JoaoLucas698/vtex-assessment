@@ -153,3 +153,27 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 **Opções consideradas:** A) `shared/`; B) módulo `products`; C) `modules/catalog-import/services/` (`ProductNormalizerService`, `ProductMatchingService`), serviços puros.
 **Decisão:** C. A importação é o único fluxo que aplica a regra.
 **Consequências:** o teste de consistência importa o normalizer pelo alias `@modules/catalog-import/...`. Se outro módulo precisar da regra, o service é exportado pelo `CatalogImportModule`.
+
+## D-030 — Versões das dependências do backend no Node 26
+**Contexto:** o projeto roda em Node 26.13.1. O `nest new` mais recente gera o Nest 12 com Vitest e oxlint, mas o `CLAUDE.md` §1 manda Jest, `jest-mock-extended` e ESLint. O `@nestjs/swagger@12` exige `@nestjs/common@12` como peer, e o Prisma 7 muda a configuração do datasource (`prisma.config.ts`, sem `url` no schema).
+**Opções consideradas:** A) Nest 12 + Vitest/oxlint do template — foge da stack do `CLAUDE.md`; B) Nest 11 (template com Jest + ESLint) com `@nestjs/swagger@11`; C) Prisma 7 — exige reescrever o padrão `url = env("DATABASE_URL")` descrito no `CLAUDE.md` §5.
+**Decisão:** B, com Prisma 6 (`prisma` e `@prisma/client` 6.19.x). Instalação, `prisma generate`, engines, Jest/ts-jest e Nest build/start foram conferidos e funcionam em Node 26.13.1. `"engines": { "node": ">=26" }` nos `package.json`.
+**Consequências:** migrar para Nest 12 e Prisma 7 é uma evolução futura e independente. Em produção convém fixar as versões com o lockfile.
+
+## D-031 — Resolução dos path aliases no build e no runtime (backend)
+**Contexto:** o `CLAUDE.md` §4 exige aliases `@modules/*`, `@shared/*`, `@test/*` em build, runtime e testes. O `main.ts` precisa importar o `AppModule` (que fica em `src/app.module.ts`, fora desses aliases).
+**Opções consideradas:** A) `tsconfig-paths/register` no `node dist/main`; B) deixar o `nest build` reescrever os aliases no JS emitido; C) bundler.
+**Decisão:** B. O `nest build` (tsc com o plugin de paths do Nest CLI) reescreve os aliases para caminhos relativos em `dist/`, então `node dist/main` roda sem hook. Conferido: `npm run build` seguido de `node dist/main` sobe e responde `/api/docs-json`. O `tsconfig-paths` continua instalado para scripts (ex.: `seed.ts`). Foi adicionado o alias extra `@/*` → `src/*`, usado apenas por `main.ts` e pelos e2e para importar `@/app.module`; ele consta em `tsconfig.json`, Jest e `jest-e2e.json`.
+**Consequências:** nenhum passo extra no start. Se o build mudar para bundler, revisar a resolução.
+
+## D-032 — Mapa único `code → HTTP` com registro por módulo
+**Contexto:** o `CLAUDE.md` §3 exige o mapeamento de erro para HTTP num lugar só, mas cada módulo define seus próprios códigos.
+**Opções consideradas:** A) objeto central com todos os códigos — acopla `shared` aos módulos; B) cada módulo registra seus códigos num registro central em `shared/errors`.
+**Decisão:** B. `shared/errors/error-http-status.ts` guarda o `Map` (com `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `INTERNAL_ERROR` de base) e expõe `registerErrorStatuses({...})`; cada módulo o chama no topo do seu `schemas/<modulo>.errors.ts`. `unwrapResult` consulta o mapa; code sem registro vira 500.
+**Consequências:** o mapeamento continua num único mecanismo e o `shared` não conhece os módulos. O registro acontece no import do arquivo de erros, que o usecase já importa.
+
+## D-033 — Ferramentas do frontend: ESLint e TypeScript 5.9
+**Contexto:** o template atual do Vite (react-ts) vem com oxlint e TypeScript 7. O `CLAUDE.md` §4 exige ESLint com `no-restricted-imports`, e o `typescript-eslint` ainda não suporta o TypeScript 7.
+**Opções consideradas:** A) manter oxlint e TypeScript 7 — foge da regra de lint por ESLint e não há garantia de suporte do ecossistema; B) trocar para ESLint 9 + `typescript-eslint` com TypeScript 5.9.
+**Decisão:** B. Vitest 5 com `jsdom`, `@testing-library/react`, `@testing-library/jest-dom` e `vitest-mock-extended`. `@testing-library/user-event` foi instalado junto como apoio aos testes de interação das próximas telas (faz parte do ecossistema do Testing Library). Conferido em Node 26.13.1: lint, build e testes passam.
+**Consequências:** migrar para o TypeScript 7 quando o `typescript-eslint` o suportar.
