@@ -1,10 +1,11 @@
 // @ts-check
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
+export default defineConfig(
   {
     ignores: ['eslint.config.mjs', 'dist/**', 'coverage/**'],
   },
@@ -64,7 +65,7 @@ export default tseslint.config(
     },
   },
   {
-    // jest-mock-extended: `expect(mock.metodo)` � o uso padr�o e n�o depende de `this`.
+    // jest-mock-extended: `expect(mock.metodo)` é o uso padrão e não depende de `this`.
     files: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
     rules: { '@typescript-eslint/unbound-method': 'off' },
   },
