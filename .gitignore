@@ -1,0 +1,8 @@
+.claude
+.serena
+node_modules/
+dist/
+coverage/
+.env
+*.dev.db
+*.dev.db-journal
