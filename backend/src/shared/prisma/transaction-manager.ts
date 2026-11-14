@@ -10,6 +10,16 @@ class RollbackSignal<E> extends Error {
   }
 }
 
+export interface TransactionOptions {
+  /** Tempo máximo da transação em ms. */
+  timeout?: number;
+  /** Tempo máximo de espera por uma conexão em ms. */
+  maxWait?: number;
+}
+
+/** O padrão do Prisma (5 s) é curto para importações grandes. */
+export const DEFAULT_TRANSACTION_TIMEOUT_MS = 30_000;
+
 @Injectable()
 export class TransactionManager {
   constructor(private readonly prisma: PrismaService) {}
@@ -20,13 +30,17 @@ export class TransactionManager {
    */
   async run<T, E>(
     work: (tx: Prisma.TransactionClient) => Promise<Result<T, E>>,
+    options: TransactionOptions = {},
   ): Promise<Result<T, E>> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const result = await work(tx);
-        if (result.isFailure) throw new RollbackSignal<E>(result);
-        return result;
-      });
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const result = await work(tx);
+          if (result.isFailure) throw new RollbackSignal<E>(result);
+          return result;
+        },
+        { timeout: DEFAULT_TRANSACTION_TIMEOUT_MS, ...options },
+      );
     } catch (error) {
       if (error instanceof RollbackSignal) return error.failure as Result<T, E>;
       throw error;

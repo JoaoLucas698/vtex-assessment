@@ -56,4 +56,24 @@ describe('TransactionManager', () => {
       sut.run(() => Promise.reject(new Error('banco caiu'))),
     ).rejects.toThrow('banco caiu');
   });
+
+  it('usa timeout de 30 s por padrão, mantendo a chamada de um argumento', async () => {
+    await sut.run(() => Promise.resolve(Result.success(1)));
+
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 30_000,
+    });
+  });
+
+  it('repassa timeout e maxWait informados ao $transaction', async () => {
+    await sut.run(() => Promise.resolve(Result.success(1)), {
+      timeout: 60_000,
+      maxWait: 10_000,
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 60_000,
+      maxWait: 10_000,
+    });
+  });
 });
