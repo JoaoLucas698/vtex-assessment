@@ -27,7 +27,10 @@ export class SellerSummaryResponseDto {
 }
 
 export class ListSellersResponseDto {
-  @ApiProperty({ type: [SellerSummaryResponseDto] })
+  @ApiProperty({
+    description: 'Sellers da página.',
+    type: [SellerSummaryResponseDto],
+  })
   items!: SellerSummaryResponseDto[];
 
   @ApiProperty({ description: 'Total de sellers.', example: 3 })

@@ -11,6 +11,7 @@ import {
   MAX_CATALOG_FILE_SIZE_BYTES,
 } from '@modules/catalog-import/schemas/catalog-import.types';
 import { configureApp } from '@shared/config/configure-app';
+import { CommonErrorCode } from '@shared/errors/error-codes';
 import { PrismaService } from '@shared/prisma/prisma.service';
 import { EmptyDatabase } from '@test/catalog-import/empty-database';
 import { LegacyDatabase } from '@test/helpers/legacy-database';
@@ -367,10 +368,9 @@ describe('Catalog import e2e: arquivo rejeitado', () => {
       )
       .expect(413);
 
-    // O código do corpo vem do filtro global (`shared`), que não tem código próprio para 413.
     expect(response.body).toMatchObject({
       statusCode: 413,
-      message: 'File too large',
+      code: CommonErrorCode.PAYLOAD_TOO_LARGE,
     });
   });
 

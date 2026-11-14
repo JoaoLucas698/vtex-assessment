@@ -29,6 +29,7 @@ export class ListSellerProductsUseCase {
     return this.listProducts(seller.value, input);
   }
 
+  /** Defesa para chamadas fora do HTTP: pela API o `PaginationRequestDto` já garante estes limites. */
   private validatePagination(
     input: ListSellerProductsInput,
   ): Result<ListSellerProductsInput, AppError> {

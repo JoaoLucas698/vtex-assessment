@@ -31,6 +31,8 @@ npm run start:dev                                 # http://localhost:3000
 
 O `catalog.db` fornecido não tem a tabela `_prisma_migrations`, por isso o `migrate resolve --applied 0_init` marca a baseline antes do `migrate deploy`. Nas próximas execuções, rode só o `migrate deploy`.
 
+O `.env` é lido pelo `prisma.config.ts` (comandos `prisma`) e pelo `main.ts` (API). O caminho de `DATABASE_URL` é relativo à pasta `backend/`, de onde os comandos rodam (D-035). `CORS_ORIGINS` lista as origens liberadas no CORS, separadas por vírgula; sem ela o CORS fica desligado (D-036).
+
 ### Frontend
 
 ```bash

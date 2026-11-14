@@ -6,6 +6,7 @@ import { PaginationRequestDto } from '@modules/sellers/schemas/dto/pagination.re
 import { SellerErrorCode } from '@modules/sellers/schemas/sellers.errors';
 import { ListSellerProductsUseCase } from '@modules/sellers/usecases/list-seller-products.usecase';
 import { ListSellersUseCase } from '@modules/sellers/usecases/list-sellers.usecase';
+import { CommonErrorCode } from '@shared/errors/error-codes';
 import { unwrapResult } from '@shared/errors/unwrap-result';
 
 @ApiTags('sellers')
@@ -21,12 +22,13 @@ export class SellersController {
   @ApiResponse({ status: 200, type: ListSellersResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'Paginação inválida.',
+    description: 'Paginação inválida (VALIDATION_ERROR).',
     schema: {
       example: {
         statusCode: 400,
-        message: ['pageSize must not be greater than 100'],
-        error: 'Bad Request',
+        code: CommonErrorCode.VALIDATION_ERROR,
+        message: 'Requisição inválida',
+        details: ['pageSize must not be greater than 100'],
       },
     },
   })
@@ -49,12 +51,12 @@ export class SellersController {
   @ApiResponse({ status: 200, type: ListSellerProductsResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'Id ou paginação inválidos.',
+    description: 'Id ou paginação inválidos (VALIDATION_ERROR).',
     schema: {
       example: {
         statusCode: 400,
+        code: CommonErrorCode.VALIDATION_ERROR,
         message: 'Validation failed (numeric string is expected)',
-        error: 'Bad Request',
       },
     },
   })

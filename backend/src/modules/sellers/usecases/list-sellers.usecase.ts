@@ -21,6 +21,7 @@ export class ListSellersUseCase {
     return this.listSellers(validated.value);
   }
 
+  /** Defesa para chamadas fora do HTTP: pela API o `PaginationRequestDto` já garante estes limites. */
   private validatePagination(
     input: ListSellersInput,
   ): Result<ListSellersInput, AppError> {
