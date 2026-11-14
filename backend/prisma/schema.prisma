@@ -1,0 +1,10 @@
+// Schema mínimo da fundação: só generator e datasource.
+// O modelo de dados final é escrito na etapa de banco (ver docs/plan.md).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
