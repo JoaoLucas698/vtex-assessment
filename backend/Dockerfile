@@ -5,7 +5,7 @@ FROM node:26-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
-COPY backend/package.json backend/package-lock.json ./
+COPY backend/package.json backend/package-lock.json backend/prisma.config.ts ./
 COPY backend/prisma ./prisma
 RUN npm ci
 COPY backend/tsconfig.json backend/tsconfig.build.json backend/nest-cli.json ./
@@ -20,7 +20,7 @@ ENV NODE_ENV=production \
     DATABASE_URL=file:/data/catalog.db \
     SEED_DB_PATH=/app/database/catalog.db
 WORKDIR /app/backend
-COPY backend/package.json backend/package-lock.json ./
+COPY backend/package.json backend/package-lock.json backend/prisma.config.ts ./
 COPY backend/prisma ./prisma
 # Dependências de produção + CLI do Prisma (precisa do `migrate` no entrypoint).
 RUN npm ci --omit=dev --ignore-scripts \

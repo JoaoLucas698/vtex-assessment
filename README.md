@@ -27,7 +27,7 @@ Depois abra `http://localhost:8080`. Detalhes na seção [Rodar com Docker](#rod
 
 ### Backend
 
-Crie o `.env` **antes** de instalar as dependências: o `npm install` roda `prisma generate`, e o client só enxerga o `.env` se ele já existir nesse momento. Se criar o `.env` depois, rode `npx prisma generate` de novo.
+O `.env` é lido pelo `prisma.config.ts` (comandos `prisma migrate`) e pelo `main.ts` (API). O caminho de `DATABASE_URL` é relativo à pasta `backend/`, de onde os comandos rodam (D-110).
 
 Bash (Linux, macOS, Git Bash):
 
@@ -54,6 +54,7 @@ npm run start:dev
 ```
 
 O `catalog.db` fornecido não tem a tabela `_prisma_migrations`, por isso o `migrate resolve --applied 0_init` marca a baseline antes do `migrate deploy`. Nas próximas execuções, rode só o `migrate deploy`.
+
 ### Frontend
 
 ```bash
@@ -173,6 +174,7 @@ BACKEND_PORT=3001 FRONTEND_PORT=8081 docker compose up --build
 ```powershell
 $env:BACKEND_PORT="3001"; $env:FRONTEND_PORT="8081"; docker compose up --build
 ```
+
 ## Documentação
 
 - [`docs/architecture.md`](docs/architecture.md): visão geral, camadas, módulos e fluxo da importação.
