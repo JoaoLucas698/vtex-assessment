@@ -95,6 +95,7 @@ Tokens = valor `subagent_tokens` informado pela ferramenta ao fim de cada execu�
 | 6 | Docs finais | #7 | haiku · low | haiku · low | 0 | 0 | 118.199 |
 | 7 | Revisão | — | opus · medium | opus · medium | 0 | 1 (revisão do PR #9) | 272.524 · 246.919 |
 | 8 | Docker | #9 | sonnet · medium | sonnet · medium | 0 | 0 | 93.924 |
+| 9 | Ajuste da revisão do PR #1 | #1 a #12 | opus · high | opus · high | 0 | 0 | não informado |
 
 Nenhum subagente falhou, então nenhum modelo ou effort precisou subir. Não foram usados `fable`, `xhigh` nem `max`.
 
@@ -103,6 +104,7 @@ Nenhum subagente falhou, então nenhum modelo ou effort precisou subir. Não for
 - **Ondas 7 e 8 em paralelo.** A revisão só lê; o Docker escreve numa branch nova. O revisor foi retomado depois para revisar o PR #9.
 - **Correções transversais** achadas pela Importação (código 413, lockfiles fora de sincronia, timeout de 5 s da transação interativa) foram devolvidas à Fundação, que é a dona de `shared/`, e depois incorporadas em `feat/catalog-import` e `chore/docker`.
 - **PRs #7 e #8** nasceram de `feat/catalog-import` antes dessas correções. O PR #9 junta tudo, e todos apontam para `main`.
+- **Revisão do usuário no PR #1** (rodada 9): Prisma 7 com libsql, TypeScript 6 sem `baseUrl`, ESLint 10 com `defineConfig`, tipos do Jest no `tsconfig`, `nest-cli.json` sem `$schema` remoto e CORS por `CORS_ORIGINS` foram feitos na própria fundação (D-030, D-033, D-035 a D-037) e propagados por merge até o topo da pilha. Com isso o escopo mudou: o upgrade de dependências do PR #11 (`chore/deps-upgrade`) foi todo para o #1 e o diff dele contra o #9 ficou vazio (D-110 e D-111 removidas); o PR #12 (`chore/cors-env`) ficou só com o e2e do CORS e o repasse de `CORS_ORIGINS` no `docker-compose.yml` (D-120 removida, coberta pela D-036). Este PR (`docs/plan-report`) nasceu de `main`, não do #9, e continua independente.
 - **Incidente:** o subagente de docs rodou `git checkout -b` no checkout principal por engano e voltou para `main` em seguida. Conferido: `main` intacta, igual a `origin/main`, sem push.
 
 ### Resultado da revisão independente
@@ -119,7 +121,7 @@ Nenhum subagente falhou, então nenhum modelo ou effort precisou subir. Não for
 | #9 | 0 | 0 | 4 | — |
 
 ### Ordem sugerida de merge
-#1 → #2 → #3 → #4 e #5 → #6 → #7 e #8 → #9 → este PR. Cada PR foi aberto contra `main`. Depois que o anterior entra, o GitHub mostra só o diff próprio. Conflitos esperados só em `docs/decisions.md` (manter as duas entradas, em ordem numérica).
+#1 → #2 → #3 → #4 e #5 → #6 → #7 e #8 → #9 → #11 (sem diff próprio depois da rodada 9) → #12 → este PR. Cada PR foi aberto contra `main`. Depois que o anterior entra, o GitHub mostra só o diff próprio. Conflitos esperados só em `docs/decisions.md` (manter as duas entradas, em ordem numérica).
 
 ## Verificação final
 Tudo rodado em Node 26.13.1 (`node -v` antes).
