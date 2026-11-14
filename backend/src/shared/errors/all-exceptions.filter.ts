@@ -63,6 +63,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 
   private fromUnexpected(exception: unknown): ErrorBody {
+    // Erros do body-parser (corpo grande demais) chegam como objetos com `status`, não como HttpException.
+    if (
+      typeof exception === 'object' &&
+      exception !== null &&
+      'status' in exception &&
+      exception.status === HttpStatus.PAYLOAD_TOO_LARGE
+    ) {
+      return {
+        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+        code: CommonErrorCode.PAYLOAD_TOO_LARGE,
+        message: 'Arquivo ou corpo da requisição grande demais',
+      };
+    }
     this.logger.error(
       exception instanceof Error
         ? (exception.stack ?? exception.message)
@@ -80,6 +93,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       [HttpStatus.BAD_REQUEST]: CommonErrorCode.VALIDATION_ERROR,
       [HttpStatus.NOT_FOUND]: CommonErrorCode.NOT_FOUND,
       [HttpStatus.CONFLICT]: CommonErrorCode.CONFLICT,
+      [HttpStatus.PAYLOAD_TOO_LARGE]: CommonErrorCode.PAYLOAD_TOO_LARGE,
     };
     return codes[statusCode] ?? CommonErrorCode.INTERNAL_ERROR;
   }
