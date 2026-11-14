@@ -1,0 +1,4 @@
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+.table th { background: #f8fafc; }
+.diff { background: #fff7d6; }
