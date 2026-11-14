@@ -81,9 +81,45 @@ Retentativa: mesma config; só após 2ª falha sobe modelo/effort e registra aqu
 3. Após a Onda 8 e a revisão dela: PR `docs/plan-report` atualizando a tabela abaixo (previsto × realizado).
 
 ## Previsto × realizado
-| Subagente | Modelo/Effort previsto | Realizado | Retentativas | Tokens |
+Tokens = valor `subagent_tokens` informado pela ferramenta ao fim de cada execução (inclui o contexto acumulado). "Retomadas" são execuções extras do mesmo subagente para ajustes pedidos pelo agente principal ou pela revisão. Elas não são falhas, então não contam como retentativa.
+
+| Onda | Subagente | PR | Previsto | Realizado | Retentativas | Retomadas | Tokens por execução |
+|---|---|---|---|---|---|---|---|
+| 1 | Fundação | #1 | sonnet · medium | sonnet · medium | 0 | 2 (encoding do eslint; 413, lockfiles e timeout da transação) | 114.871 · 116.421 · 125.408 |
+| 2 | Normalização e matching | #2 | opus · high | opus · high | 0 | 0 | 102.096 |
+| 3 | Banco | #3 | sonnet · high | sonnet · high | 0 | 0 (rebase em `feat/matching` feito na mesma execução) | 186.475 |
+| 4 | Sellers | #4 | sonnet · medium | sonnet · medium | 0 | 1 (bloqueante da revisão: exemplos 400 do Swagger) | 106.173 · 95.515 |
+| 4 | Products | #5 | sonnet · medium | sonnet · medium | 0 | 1 (bloqueantes da revisão: Swagger 400, mock do normalizer, D-070) | 91.473 · 92.857 |
+| 5 | Importação | #6 | opus · high | opus · high | 0 | 2 (merge das correções da Fundação; bloqueante da revisão: mocks no spec do usecase) | 223.768 · 207.578 · 260.544 |
+| 6 | Frontend | #8 | sonnet · medium | sonnet · medium | 0 | 0 | 99.175 |
+| 6 | Docs finais | #7 | haiku · low | haiku · low | 0 | 0 | 118.199 |
+| 7 | Revisão | — | opus · medium | opus · medium | 0 | 1 (revisão do PR #9) | 272.524 · 246.919 |
+| 8 | Docker | #9 | sonnet · medium | sonnet · medium | 0 | 0 | 93.924 |
+
+Nenhum subagente falhou, então nenhum modelo ou effort precisou subir. Não foram usados `fable`, `xhigh` nem `max`.
+
+### Desvios em relação ao plano
+- **Ondas 2 e 3 em paralelo** (pedido do usuário durante a execução). O contrato do `ProductNormalizerService` foi fixado nos dois briefings. A Onda 3 escreveu o teste de consistência contra o contrato e fez rebase em `feat/matching` assim que ela foi publicada. Resultado: 6 rodadas de subagentes em vez de 7.
+- **Ondas 7 e 8 em paralelo.** A revisão só lê; o Docker escreve numa branch nova. O revisor foi retomado depois para revisar o PR #9.
+- **Correções transversais** achadas pela Importação (código 413, lockfiles fora de sincronia, timeout de 5 s da transação interativa) foram devolvidas à Fundação, que é a dona de `shared/`, e depois incorporadas em `feat/catalog-import` e `chore/docker`.
+- **PRs #7 e #8** nasceram de `feat/catalog-import` antes dessas correções. O PR #9 junta tudo, e todos apontam para `main`.
+- **Incidente:** o subagente de docs rodou `git checkout -b` no checkout principal por engano e voltou para `main` em seguida. Conferido: `main` intacta, igual a `origin/main`, sem push.
+
+### Resultado da revisão independente
+| PR | Bloqueante | Importante | Sugestão | Situação |
 |---|---|---|---|---|
-| (preenchido ao final) | | | | |
+| #1 | 0 | 0 | 2 | — |
+| #2 | 0 | 0 | 0 | — |
+| #3 | 0 | 0 | 1 | já coberto por D-052 |
+| #4 | 1 | 0 | 3 | bloqueante corrigido (008dc0f) |
+| #5 | 2 | 1 | 1 | corrigidos (310223a) |
+| #6 | 1 | 0 | 2 | bloqueante corrigido (e0ae74d) |
+| #7 | 0 | 1 | 3 | importante resolvido pelo #9 |
+| #8 | 0 | 0 | 2 | — |
+| #9 | 0 | 0 | 4 | — |
+
+### Ordem sugerida de merge
+#1 → #2 → #3 → #4 e #5 → #6 → #7 e #8 → #9 → este PR. Cada PR foi aberto contra `main`. Depois que o anterior entra, o GitHub mostra só o diff próprio. Conflitos esperados só em `docs/decisions.md` (manter as duas entradas, em ordem numérica).
 
 ## Verificação final
 Tudo rodado em Node 26.13.1 (`node -v` antes).
