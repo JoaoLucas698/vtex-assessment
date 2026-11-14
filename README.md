@@ -29,6 +29,12 @@ Depois abra `http://localhost:8080`. Detalhes na seção [Rodar com Docker](#rod
 
 O `.env` é lido pelo `prisma.config.ts` (comandos `prisma migrate`) e pelo `main.ts` (API). O caminho de `DATABASE_URL` é relativo à pasta `backend/`, de onde os comandos rodam (D-110).
 
+| Variável | Para que serve | Exemplo |
+|---|---|---|
+| `DATABASE_URL` | Banco SQLite de trabalho (cópia, nunca o original) | `file:../database/catalog.dev.db` |
+| `PORT` | Porta da API | `3000` |
+| `CORS_ORIGINS` | Origens liberadas no CORS, separadas por vírgula. Vazia = CORS desligado (D-120) | `http://localhost:5173,http://127.0.0.1:5173` |
+
 Bash (Linux, macOS, Git Bash):
 
 ```bash

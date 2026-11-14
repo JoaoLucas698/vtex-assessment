@@ -5,6 +5,10 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      # O frontend do Compose fala com a API pelo proxy do nginx (mesma origem) e não
+      # precisa de CORS. Defina CORS_ORIGINS só para outra origem chamar a API direto.
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
     volumes:
       - catalog-data:/data
     healthcheck:
