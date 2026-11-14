@@ -1,5 +1,3 @@
-// Schema mínimo da fundação: só generator e datasource.
-// O modelo de dados final é escrito na etapa de banco (ver docs/plan.md).
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,4 +5,46 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+model Seller {
+  id             Int             @id @default(autoincrement()) @map("Id")
+  sellerName     String          @unique @map("SellerName")
+  createdAt      DateTime        @default(now()) @map("CreatedAt")
+  updatedAt      DateTime        @updatedAt @map("UpdatedAt")
+  sellerProducts SellerProduct[]
+
+  @@map("Seller")
+}
+
+model Product {
+  id             Int             @id @default(autoincrement()) @map("Id")
+  name           String          @map("Name")
+  brand          String?         @map("Brand")
+  category       String?         @map("Category")
+  normalizedKey  String          @unique @map("NormalizedKey")
+  createdAt      DateTime        @default(now()) @map("CreatedAt")
+  updatedAt      DateTime        @updatedAt @map("UpdatedAt")
+  sellerProducts SellerProduct[]
+
+  @@map("Product")
+}
+
+model SellerProduct {
+  id         Int      @id @default(autoincrement()) @map("Id")
+  productId  Int      @map("ProductId")
+  sellerId   Int      @map("SellerId")
+  externalId String?  @map("ExternalId")
+  name       String   @map("Name")
+  brand      String?  @map("Brand")
+  category   String?  @map("Category")
+  matchedBy  String   @map("MatchedBy")
+  createdAt  DateTime @default(now()) @map("CreatedAt")
+  updatedAt  DateTime @updatedAt @map("UpdatedAt")
+  product    Product  @relation(fields: [productId], references: [id])
+  seller     Seller   @relation(fields: [sellerId], references: [id])
+
+  @@unique([productId, sellerId])
+  @@unique([sellerId, externalId])
+  @@map("SellerProduct")
 }
