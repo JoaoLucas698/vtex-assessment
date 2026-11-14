@@ -6,31 +6,54 @@ O sistema importa o arquivo de carga (JSON), identifica o que é o mesmo produto
 
 Stack: backend em NestJS + Prisma sobre SQLite, frontend em React + Vite. Regras de negócio, decisões e a arquitetura estão em `/docs`.
 
+## Início rápido
+
+**Com Docker** (só precisa do Docker; sobe backend e frontend com um comando):
+
+```bash
+docker compose up --build
+```
+
+Depois abra `http://localhost:8080`. Detalhes na seção [Rodar com Docker](#rodar-com-docker).
+
+**Sem Docker** (Node 26 e npm): veja [Rodar sem Docker](#rodar-sem-docker). Em resumo, backend em `http://localhost:3000` e frontend (Vite) em `http://localhost:5173`.
+
 ## Pré-requisitos
 
-- Node 26 (versão em `.nvmrc`: 26.13.1)
-- npm
+- Para rodar com Docker: Docker com Compose v2 (testado com Docker 28 e Compose 2.39).
+- Para rodar sem Docker: Node 26 (versão em `.nvmrc`: 26.13.1) e npm.
 
 ## Rodar sem Docker
 
 ### Backend
 
+Crie o `.env` **antes** de instalar as dependências: o `npm install` roda `prisma generate`, e o client só enxerga o `.env` se ele já existir nesse momento. Se criar o `.env` depois, rode `npx prisma generate` de novo.
+
+Bash (Linux, macOS, Git Bash):
+
 ```bash
 cd backend
+cp .env.example .env                                    # DATABASE_URL aponta para database/catalog.dev.db
+cp ../database/catalog.db ../database/catalog.dev.db    # nunca altere o catalog.db original
 npm install
-
-cp .env.example .env                              # DATABASE_URL aponta para database/catalog.dev.db
-
-cp ../database/catalog.db ../database/catalog.dev.db   # nunca altere o catalog.db original
-
-npx prisma migrate resolve --applied 0_init       # só na primeira vez (ver D-055)
+npx prisma migrate resolve --applied 0_init             # só na primeira vez (ver D-055)
 npx prisma migrate deploy
+npm run start:dev                                       # http://localhost:3000
+```
 
-npm run start:dev                                 # http://localhost:3000
+PowerShell:
+
+```powershell
+cd backend
+Copy-Item .env.example .env
+Copy-Item ..\database\catalog.db ..\database\catalog.dev.db
+npm install
+npx prisma migrate resolve --applied 0_init
+npx prisma migrate deploy
+npm run start:dev
 ```
 
 O `catalog.db` fornecido não tem a tabela `_prisma_migrations`, por isso o `migrate resolve --applied 0_init` marca a baseline antes do `migrate deploy`. Nas próximas execuções, rode só o `migrate deploy`.
-
 ### Frontend
 
 ```bash
@@ -39,7 +62,7 @@ npm install
 npm run dev
 ```
 
-Abra o endereço mostrado pelo Vite no terminal.
+Abra http://localhost:5173. O Vite encaminha /api para o backend em http://localhost:3000, então o backend precisa estar rodando.
 
 ### Testes e lint
 
@@ -102,8 +125,54 @@ Com catálogo vazio, o mesmo arquivo cria 201 produtos e 257 vínculos (cenário
 
 ## Rodar com Docker
 
-Ver seção adicionada na etapa de Docker.
+Pré-requisito: Docker com Compose v2 (Docker Desktop no Windows e macOS). Não precisa de Node instalado.
 
+```bash
+docker compose up --build
+```
+
+O primeiro build leva alguns minutos. O frontend só sobe depois que o backend passa no healthcheck.
+
+| O quê | Endereço |
+|---|---|
+| Aplicação (frontend) | `http://localhost:8080` |
+| API | `http://localhost:3000/api` |
+| Swagger | `http://localhost:3000/api/docs` |
+
+O frontend (nginx) também encaminha `/api` para o backend, então `http://localhost:8080/api/...` funciona.
+
+**Importar a carga**
+
+- Pelo app: abra `http://localhost:8080`, vá para a tela de importação e envie `database/fixtures/carga.json`.
+- Pela linha de comando (bash, PowerShell e cmd; no PowerShell use `curl.exe`):
+
+```bash
+curl -F "file=@database/fixtures/carga.json" http://localhost:8080/api/catalog-import
+```
+
+Na primeira importação o relatório traz `read` 269, `created` 3, `linkedExisting` 254, `alreadyLinked` 1 e `duplicateSameSeller` 11. Reenviando o arquivo, `alreadyLinked` passa a 258.
+
+**Comandos úteis**
+
+```bash
+docker compose up --build -d     # sobe em segundo plano
+docker compose logs -f backend   # acompanha os logs
+docker compose ps                # estado e healthcheck
+docker compose down              # para os containers; o banco é mantido
+docker compose down -v           # para e apaga o volume: o banco volta ao original
+```
+
+**Como o banco funciona no Docker.** O banco fornecido (`database/catalog.db`) vai dentro da imagem e nunca é alterado. Na primeira subida, o entrypoint copia o arquivo para o volume `catalog-data` (`/data/catalog.db`), marca a baseline `0_init` e aplica as migrations. As importações gravam nesse volume, que sobrevive a `down` e `up`. Para voltar ao banco original, use `docker compose down -v`. Mais detalhes em D-100.
+
+**Portas ocupadas.** As portas do host podem ser trocadas por variável de ambiente (o padrão é 3000 e 8080):
+
+```bash
+BACKEND_PORT=3001 FRONTEND_PORT=8081 docker compose up --build
+```
+
+```powershell
+$env:BACKEND_PORT="3001"; $env:FRONTEND_PORT="8081"; docker compose up --build
+```
 ## Documentação
 
 - [`docs/architecture.md`](docs/architecture.md): visão geral, camadas, módulos e fluxo da importação.
