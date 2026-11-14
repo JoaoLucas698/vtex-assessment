@@ -230,3 +230,9 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 **Opções consideradas:** A) manter `NoAction` explícito — ruído sem comportamento diferente no SQLite com `foreign_keys` ligado; B) padrão do Prisma para relações obrigatórias: `ON DELETE RESTRICT ON UPDATE CASCADE`.
 **Decisão:** B. Nenhum fluxo da aplicação apaga produto ou seller; `RESTRICT` impede apagar um que ainda tem vínculos.
 **Consequências:** a FK recriada tem `RESTRICT/CASCADE` em vez de `NO ACTION`. Não muda nenhum caso de uso.
+
+## D-070 — `ProductsModule` registra o `ProductNormalizerService`
+**Contexto:** a busca por nome ou marca ignora maiúsculas, acentos e espaços repetidos. O SQLite no Prisma não tem `mode: 'insensitive'`, então o termo é normalizado com a mesma regra da `normalizedKey` e comparado com `contains` nessa coluna. Isso exige o `ProductNormalizerService`, que vive no módulo `catalog-import`.
+**Opções consideradas:** A) o `CatalogImportModule` exporta o service e o `ProductsModule` importa o módulo — respeita o `CLAUDE.md` à risca, mas altera um módulo que outro subagente desenvolve em paralelo; B) registrar o `ProductNormalizerService` como provider no próprio `ProductsModule` — o service é puro e sem estado, então uma segunda instância não tem efeito colateral; C) duplicar a regra de normalização — proibido, a regra tem uma implementação só (D-025).
+**Decisão:** B.
+**Consequências:** `ProductsModule` e `CatalogImportModule` têm instâncias separadas do mesmo service, o que é inofensivo por ele ser stateless. Quando a Onda 5 estiver integrada, trocar por A (exportar pelo `CatalogImportModule` e importar no `ProductsModule`) remove a duplicidade de registro sem mudar nenhum usecase.
