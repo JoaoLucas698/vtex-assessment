@@ -101,3 +101,92 @@ export type MatchDecision =
   | LinkExistingDecision
   | CreateProductDecision
   | DuplicateSameSellerDecision;
+
+/** Tamanho máximo do arquivo de carga aceito pelo upload (D-083). */
+export const MAX_CATALOG_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
+/** Nome do campo multipart que carrega o arquivo. */
+export const CATALOG_FILE_FIELD = 'file';
+
+/** Nomes dos campos de cada item do arquivo de carga (`docs/context.md` §2). */
+export const CatalogItemField = {
+  ID: 'Id',
+  SELLER_NAME: 'SellerName',
+  NAME: 'Name',
+  BRAND: 'Brand',
+  CATEGORY: 'Category',
+} as const;
+
+/** Arquivo recebido no upload, no formato mínimo que a importação usa. */
+export interface UploadedCatalogFile {
+  readonly buffer: Buffer;
+  readonly size: number;
+  readonly originalname?: string;
+  readonly mimetype?: string;
+}
+
+/**
+ * Item válido do arquivo. Os textos são guardados **exatamente** como vieram
+ * (o trim só é usado para validar, D-082).
+ */
+export interface ValidCatalogItem {
+  /** Posição do item no array do arquivo (começa em 0). */
+  readonly index: number;
+  readonly externalId: string;
+  readonly sellerName: string;
+  readonly name: string;
+  readonly brand: string | null;
+  readonly category: string | null;
+}
+
+/** Item rejeitado na validação (D-011), com o motivo legível. */
+export interface InvalidCatalogItem {
+  readonly index: number;
+  /** Valor recebido quando é texto; `null` quando ausente ou de outro tipo. */
+  readonly externalId: string | null;
+  readonly sellerName: string | null;
+  readonly name: string | null;
+  readonly reason: string;
+}
+
+/** Resultado do parser: itens separados em válidos e inválidos, na ordem do arquivo. */
+export interface ParsedCatalogFile {
+  /** Quantidade de itens lidos do array. */
+  readonly total: number;
+  readonly valid: ValidCatalogItem[];
+  readonly invalid: InvalidCatalogItem[];
+}
+
+/** Entrada do usecase de importação. `file` ausente vira `FILE_REQUIRED`. */
+export interface ImportCatalogInput {
+  readonly file: UploadedCatalogFile | null | undefined;
+}
+
+/** Linha do relatório: o que aconteceu com um item do arquivo. */
+export interface ImportItemReport {
+  readonly index: number;
+  readonly externalId: string | null;
+  readonly sellerName: string | null;
+  readonly name: string | null;
+  readonly outcome: ImportItemOutcome;
+  /** Produto oficial ligado ao item (`null` para inválidos). */
+  readonly productId: number | null;
+  /** Critério do vínculo (`null` para inválidos e duplicados). */
+  readonly matchedBy: string | null;
+  /** Motivo (só para inválidos e duplicados no mesmo seller). */
+  readonly reason: string | null;
+}
+
+export interface ImportTotals {
+  readonly read: number;
+  readonly invalid: number;
+  readonly created: number;
+  readonly linkedExisting: number;
+  readonly alreadyLinked: number;
+  readonly duplicateSameSeller: number;
+}
+
+export interface ImportCatalogOutput {
+  readonly totals: ImportTotals;
+  readonly items: ImportItemReport[];
+}
