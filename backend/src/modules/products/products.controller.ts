@@ -25,8 +25,9 @@ export class ProductsController {
     schema: {
       example: {
         statusCode: 400,
-        message: ['pageSize must not be greater than 100'],
-        error: 'Bad Request',
+        code: 'VALIDATION_ERROR',
+        message: 'Requisição inválida',
+        details: ['pageSize must not be greater than 100'],
       },
     },
   })
@@ -53,8 +54,8 @@ export class ProductsController {
     schema: {
       example: {
         statusCode: 400,
+        code: 'VALIDATION_ERROR',
         message: 'Validation failed (numeric string is expected)',
-        error: 'Bad Request',
       },
     },
   })

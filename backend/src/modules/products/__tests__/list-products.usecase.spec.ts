@@ -6,13 +6,13 @@ import { ListProductsUseCase } from '@modules/products/usecases/list-products.us
 describe('ListProductsUseCase', () => {
   let sut: ListProductsUseCase;
   let productRepository: DeepMockProxy<ProductRepository>;
+  let productNormalizer: DeepMockProxy<ProductNormalizerService>;
 
   beforeEach(() => {
     productRepository = mockDeep<ProductRepository>();
-    sut = new ListProductsUseCase(
-      productRepository,
-      new ProductNormalizerService(),
-    );
+    productNormalizer = mockDeep<ProductNormalizerService>();
+    productNormalizer.normalize.mockReturnValue('');
+    sut = new ListProductsUseCase(productRepository, productNormalizer);
   });
 
   it('devolve lista vazia quando não há produtos', async () => {
@@ -50,20 +50,22 @@ describe('ListProductsUseCase', () => {
     }
   });
 
-  it.each(['TÊNIS Nike', 'tenis nike', '  tênis   nike  ', "Tênis 'Nike'"])(
-    'normaliza o termo "%s" antes de buscar',
-    async (q) => {
-      productRepository.search.mockResolvedValue({ items: [], total: 0 });
+  it('normaliza o termo com o normalizer e envia o retorno ao repository', async () => {
+    productNormalizer.normalize.mockReturnValue('tenis nike');
+    productRepository.search.mockResolvedValue({ items: [], total: 0 });
 
-      await sut.execute({ q, page: 1, pageSize: 20 });
+    await sut.execute({ q: '  TÊNIS   Nike ', page: 1, pageSize: 20 });
 
-      expect(productRepository.search).toHaveBeenCalledWith(
-        expect.objectContaining({ q: 'tenis nike' }),
-      );
-    },
-  );
+    expect(productNormalizer.normalize).toHaveBeenCalledWith('  TÊNIS   Nike ');
+    expect(productRepository.search).toHaveBeenCalledWith({
+      q: 'tenis nike',
+      page: 1,
+      pageSize: 20,
+    });
+  });
 
-  it('envia o termo malicioso apenas normalizado, sem validar nem rejeitar', async () => {
+  it('não rejeita termo malicioso: só repassa o retorno do normalizer', async () => {
+    productNormalizer.normalize.mockReturnValue('x; drop table product; --');
     productRepository.search.mockResolvedValue({ items: [], total: 0 });
 
     const result = await sut.execute({

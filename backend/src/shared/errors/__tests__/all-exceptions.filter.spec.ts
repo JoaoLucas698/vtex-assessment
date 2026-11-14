@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
@@ -69,5 +70,23 @@ describe('AllExceptionsFilter', () => {
       message: 'Requisição inválida',
       details: ['name must be a string'],
     });
+  });
+
+  it('413 vira PAYLOAD_TOO_LARGE, vindo de HttpException', () => {
+    sut.catch(new PayloadTooLargeException(), host);
+
+    expect(response.status).toHaveBeenCalledWith(413);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 413, code: 'PAYLOAD_TOO_LARGE' }),
+    );
+  });
+
+  it('413 do body-parser (objeto com status) vira PAYLOAD_TOO_LARGE e não 500', () => {
+    sut.catch({ status: 413, message: 'request entity too large' }, host);
+
+    expect(response.status).toHaveBeenCalledWith(413);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 413, code: 'PAYLOAD_TOO_LARGE' }),
+    );
   });
 });
