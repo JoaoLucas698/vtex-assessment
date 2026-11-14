@@ -13,7 +13,7 @@ export function createTempDirectory(prefix: string): string {
 /**
  * Tenta apagar a pasta na hora. No Windows o driver libsql só solta o arquivo do banco
  * quando o processo termina, então um `EPERM` aqui é esperado: o `globalTeardown`
- * apaga o que sobrou depois que os workers do Jest saem (D-110).
+ * apaga o que sobrou depois que os workers do Jest saem (D-035).
  */
 export function removeTempDirectory(directory: string): void {
   try {

@@ -27,7 +27,13 @@ Depois abra `http://localhost:8080`. Detalhes na seção [Rodar com Docker](#rod
 
 ### Backend
 
-O `.env` é lido pelo `prisma.config.ts` (comandos `prisma migrate`) e pelo `main.ts` (API). O caminho de `DATABASE_URL` é relativo à pasta `backend/`, de onde os comandos rodam (D-110).
+O `.env` é lido pelo `prisma.config.ts` (comandos `prisma migrate`) e pelo `main.ts` (API). O caminho de `DATABASE_URL` é relativo à pasta `backend/`, de onde os comandos rodam (D-035).
+
+| Variável | Para que serve | Exemplo |
+|---|---|---|
+| `DATABASE_URL` | Banco SQLite de trabalho (cópia, nunca o original) | `file:../database/catalog.dev.db` |
+| `PORT` | Porta da API | `3000` |
+| `CORS_ORIGINS` | Origens liberadas no CORS, separadas por vírgula. Vazia = CORS desligado (D-036) | `http://localhost:5173,http://127.0.0.1:5173` |
 
 Bash (Linux, macOS, Git Bash):
 
@@ -174,7 +180,6 @@ BACKEND_PORT=3001 FRONTEND_PORT=8081 docker compose up --build
 ```powershell
 $env:BACKEND_PORT="3001"; $env:FRONTEND_PORT="8081"; docker compose up --build
 ```
-
 ## Documentação
 
 - [`docs/architecture.md`](docs/architecture.md): visão geral, camadas, módulos e fluxo da importação.
