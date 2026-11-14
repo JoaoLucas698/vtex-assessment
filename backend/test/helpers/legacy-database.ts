@@ -1,8 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { createPrismaAdapter } from '@shared/prisma/create-prisma-adapter';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { copyFileSync, readFileSync } from 'node:fs';
+import {
+  createTempDirectory,
+  removeTempDirectory,
+} from '@test/helpers/temp-directory';
 import { join, resolve } from 'node:path';
 
 const BACKEND_ROOT = resolve(__dirname, '..', '..');
@@ -47,7 +51,7 @@ export class LegacyDatabase {
   ) {}
 
   static create(): LegacyDatabase {
-    const directory = mkdtempSync(join(tmpdir(), 'catalog-migration-'));
+    const directory = createTempDirectory('catalog-migration-');
     const path = join(directory, 'catalog.test.db');
     copyFileSync(ORIGINAL_DATABASE_PATH, path);
     return new LegacyDatabase(directory, path);
@@ -58,7 +62,9 @@ export class LegacyDatabase {
   }
 
   client(): PrismaClient {
-    this.prisma ??= new PrismaClient({ datasourceUrl: this.url });
+    this.prisma ??= new PrismaClient({
+      adapter: createPrismaAdapter(this.url),
+    });
     return this.prisma;
   }
 
@@ -79,7 +85,7 @@ export class LegacyDatabase {
 
   async cleanup(): Promise<void> {
     await this.disconnect();
-    rmSync(this.directory, { recursive: true, force: true, maxRetries: 5 });
+    removeTempDirectory(this.directory);
   }
 
   private runPrisma(args: string[]): void {

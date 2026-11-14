@@ -1,9 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
 import type { App } from 'supertest/types';
+import { createTempDirectory } from '@test/helpers/temp-directory';
 import { AppModule } from '@/app.module';
 import { configureApp } from '@shared/config/configure-app';
 
@@ -11,7 +11,7 @@ describe('Setup e2e', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = `file:${join(tmpdir(), 'catalog-e2e-setup.db').replaceAll('\\', '/')}`;
+    process.env.DATABASE_URL = `file:${join(createTempDirectory('setup-'), 'catalog.db').replaceAll('\\', '/')}`;
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
