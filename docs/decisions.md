@@ -236,6 +236,7 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 **Opções consideradas:** A) o `CatalogImportModule` exporta o service e o `ProductsModule` importa o módulo — respeita o `CLAUDE.md` à risca, mas altera um módulo que outro subagente desenvolve em paralelo; B) registrar o `ProductNormalizerService` como provider no próprio `ProductsModule` — o service é puro e sem estado, então uma segunda instância não tem efeito colateral; C) duplicar a regra de normalização — proibido, a regra tem uma implementação só (D-025).
 **Decisão:** B.
 **Consequências:** `ProductsModule` e `CatalogImportModule` têm instâncias separadas do mesmo service, o que é inofensivo por ele ser stateless. Quando a Onda 5 estiver integrada, trocar por A (exportar pelo `CatalogImportModule` e importar no `ProductsModule`) remove a duplicidade de registro sem mudar nenhum usecase.
+
 ## D-080 — Uma transação para o arquivo inteiro, itens em ordem
 **Contexto:** `docs/context.md` §5 pede a persistência dentro de uma transação e a deduplicação dentro do próprio arquivo (o item 50 pode ser o mesmo produto do item 3). O `ProductMatchingService` não guarda estado (D-040).
 **Opções consideradas:** A) uma transação por item — um erro inesperado no meio deixa o arquivo importado pela metade; B) uma transação para o arquivo inteiro, processando os itens válidos em ordem, um a um, cada um enxergando o que os anteriores gravaram; C) carregar tudo em memória e gravar em lote no fim — duplica a lógica de decisão fora do banco.
