@@ -65,7 +65,10 @@ export class SellerProductResponseDto {
   })
   matchedBy!: string;
 
-  @ApiProperty({ type: OfficialProductResponseDto })
+  @ApiProperty({
+    description: 'Produto oficial do catálogo ao qual o vínculo pertence.',
+    type: OfficialProductResponseDto,
+  })
   product!: OfficialProductResponseDto;
 
   static from(output: SellerProductOutput): SellerProductResponseDto {
@@ -82,10 +85,16 @@ export class SellerProductResponseDto {
 }
 
 export class ListSellerProductsResponseDto {
-  @ApiProperty({ type: SellerResponseDto })
+  @ApiProperty({
+    description: 'Seller dono dos produtos.',
+    type: SellerResponseDto,
+  })
   seller!: SellerResponseDto;
 
-  @ApiProperty({ type: [SellerProductResponseDto] })
+  @ApiProperty({
+    description: 'Produtos do seller na página.',
+    type: [SellerProductResponseDto],
+  })
   items!: SellerProductResponseDto[];
 
   @ApiProperty({ description: 'Total de produtos do seller.', example: 42 })
