@@ -25,6 +25,7 @@ import {
 import { ImportCatalogRequestDto } from '@modules/catalog-import/schemas/dto/import-catalog.request.dto';
 import { ImportCatalogResponseDto } from '@modules/catalog-import/schemas/dto/import-catalog.response.dto';
 import { ImportCatalogUseCase } from '@modules/catalog-import/usecases/import-catalog.usecase';
+import { CommonErrorCode } from '@shared/errors/error-codes';
 import { unwrapResult } from '@shared/errors/unwrap-result';
 
 const REPORT_EXAMPLE = {
@@ -142,11 +143,11 @@ export class CatalogImportController {
   })
   @ApiResponse({
     status: 413,
-    description: 'Arquivo maior que 5 MB (limite do upload, D-083).',
+    description: `Arquivo maior que 5 MB (${CommonErrorCode.PAYLOAD_TOO_LARGE}, limite do upload, D-083).`,
     schema: {
       example: {
         statusCode: 413,
-        code: 'INTERNAL_ERROR',
+        code: CommonErrorCode.PAYLOAD_TOO_LARGE,
         message: 'File too large',
       },
     },
