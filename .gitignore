@@ -6,3 +6,4 @@ coverage/
 .env
 *.dev.db
 *.dev.db-journal
+*.tsbuildinfo
