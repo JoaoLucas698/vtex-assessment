@@ -16,7 +16,7 @@ interface ErrorBody {
   details?: unknown;
 }
 
-/** Filtro global: `HttpException` mantÃ©m o status; qualquer outro erro vira 500 sem vazar stack. */
+/** Filtro global: `HttpException` mantém o status; qualquer outro erro vira 500 sem vazar stack. */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -50,7 +50,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return {
         statusCode,
         code: code ?? CommonErrorCode.VALIDATION_ERROR,
-        message: 'RequisiÃ§Ã£o invÃ¡lida',
+        message: 'Requisição inválida',
         details: message,
       };
     }
