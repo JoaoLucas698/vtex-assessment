@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import {
+  createTempDirectory,
+  removeTempDirectory,
+} from '@test/helpers/temp-directory';
 import { join, resolve } from 'node:path';
 
 const BACKEND_ROOT = resolve(__dirname, '..', '..');
@@ -24,7 +26,7 @@ export class EmptyDatabase {
   ) {}
 
   static create(): EmptyDatabase {
-    const directory = mkdtempSync(join(tmpdir(), 'catalog-import-empty-'));
+    const directory = createTempDirectory('catalog-import-empty-');
     const database = new EmptyDatabase(
       directory,
       join(directory, 'catalog.empty.db'),
@@ -43,6 +45,6 @@ export class EmptyDatabase {
   }
 
   cleanup(): void {
-    rmSync(this.directory, { recursive: true, force: true, maxRetries: 5 });
+    removeTempDirectory(this.directory);
   }
 }
