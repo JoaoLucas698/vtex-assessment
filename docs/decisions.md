@@ -177,3 +177,9 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 **Opções consideradas:** A) manter oxlint e TypeScript 7 — foge da regra de lint por ESLint e não há garantia de suporte do ecossistema; B) trocar para ESLint 9 + `typescript-eslint` com TypeScript 5.9.
 **Decisão:** B. Vitest 5 com `jsdom`, `@testing-library/react`, `@testing-library/jest-dom` e `vitest-mock-extended`. `@testing-library/user-event` foi instalado junto como apoio aos testes de interação das próximas telas (faz parte do ecossistema do Testing Library). Conferido em Node 26.13.1: lint, build e testes passam.
 **Consequências:** migrar para o TypeScript 7 quando o `typescript-eslint` o suportar.
+
+## D-034 — Timeout padrão de 30 s nas transações
+**Contexto:** o `$transaction` do Prisma expira em 5 s por padrão, curto para importações grandes de catálogo dentro de uma única transação.
+**Opções consideradas:** A) manter 5 s e quebrar a importação em lotes; B) `TransactionManager.run(work, options?)` com `timeout` padrão de 30000 ms e `maxWait` opcional; C) configurar o timeout globalmente no `PrismaClient`.
+**Decisão:** B. Quem precisar de outro valor passa `{ timeout, maxWait }`. A chamada de um argumento continua válida.
+**Consequências:** uma importação muito maior que o esperado ainda pode estourar os 30 s e falhar com rollback; em produção, medir e ajustar ou processar em lotes.
