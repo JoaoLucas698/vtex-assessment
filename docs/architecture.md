@@ -4,7 +4,7 @@
 
 O backend é uma API NestJS organizada em módulos (`backend/src/modules/`), com camadas fixas dentro de cada módulo: **Controller → UseCase → Service ou Repository**. O acesso ao banco fica só nos repositories (e no `TransactionManager`), que usam o `PrismaService` sobre um SQLite. Os erros esperados não são lançados: voltam como um `Result`, que o controller converte em resposta HTTP.
 
-Os módulos são `catalog-import` (importação do arquivo de carga), `products` (catálogo e detalhe com sellers) e `sellers` (sellers e seus produtos). O `shared/` tem o que todos usam: `Result`, mapa de erros para HTTP, `TransactionManager` e `PrismaService`.
+Os módulos são `catalog-import` (importação do arquivo de carga), `products` (catálogo e detalhe com sellers) e `sellers` (sellers e seus produtos). O `shared/` tem o que todos usam: `Result`, mapa de erros para HTTP e corpo de erro (`ErrorResponseBody`), `TransactionManager` e `PrismaService`, paginação (`shared/pagination`, D-060) e o fallback dos dados do seller para o produto oficial (`shared/catalog`, D-061).
 
 O frontend (React + Vite) só chama a API a partir de `src/api/`. Regras e decisões estão em `docs/context.md` e `docs/decisions.md`.
 
@@ -27,6 +27,10 @@ flowchart TD
 | UseCase | Executa uma ação; regra nos métodos privados, que devolvem `Result` | SQL direto, `throw` para erro esperado |
 | Service | Lógica de domínio pura (normalização, matching, relatório) | Banco, conhecer HTTP |
 | Repository | Consultas nomeadas pelo propósito, aceita `tx` opcional | Regra de negócio |
+| Schema | Tipos de domínio, enums, erros do módulo e DTOs com Swagger | Lógica |
+| Consts | Valores fixos usados em mais de um arquivo e exemplos do Swagger, tipados com `satisfies` (D-038) | Lógica, objetos montados no controller |
+
+Os exemplos de erro do Swagger usam `satisfies ErrorResponseBody`, o mesmo tipo do corpo que o filtro global devolve. Se o contrato mudar, o build quebra.
 
 ## Módulos e dependências
 
@@ -93,6 +97,13 @@ Tipo único em `backend/src/shared/result/result.ts`: `ResultSuccess<T>` ou `Res
 - Usecase: `execute()` devolve `Promise<Result<Output, AppError>>` e só encadeia métodos privados. Cada método privado devolve `Result`. A única condicional do `execute()` é `if (x.isFailure) return x;`.
 - Controller: `unwrapResult(result)` (em `shared/errors/`) devolve o valor mapeado para o response DTO no sucesso. No erro, lança a `HttpException` do `code`, consultando o mapa `code → HTTP` (D-032). Código sem registro vira 500.
 - `throw` fica para erro inesperado (bug, banco fora do ar). O `all-exceptions.filter.ts` global trata esses casos.
+- Todo erro sai no mesmo corpo, `ErrorResponseBody` (`shared/errors/error-response.types.ts`): `statusCode`, `code`, `message` e `details` opcional.
+
+## Dados do seller na leitura
+
+O banco guarda o dado como o seller enviou: `null` em `brand` ou `category` quando ele não informou (D-014). Na leitura (`GET /api/sellers/:id/products` e `GET /api/products/:id`), esses `null` são preenchidos com o dado do produto oficial, campo a campo, pela função `fillFromOfficialProduct` (D-061). Texto do seller, mesmo vazio, vem como foi enviado. `externalId` não tem fallback.
+
+Listas usam a mesma paginação (`page >= 1`, `1 <= pageSize <= 100`), com DTO, tipos e validação em `shared/pagination` (D-060).
 
 ## Transação
 
