@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { ChangeEvent, DragEvent, FormEvent } from 'react';
 import { catalogApi } from '@api/catalog-api';
 import { ImportOutcome } from '@api/types';
 import type { ImportCatalogResponse, ImportItem } from '@api/types';
 import { Badge } from '@components/badge';
 import type { BadgeTone } from '@components/badge';
 import { errorText } from '@components/error-text';
+import { PageHeader } from '@components/page-header';
 import { StatusMessage } from '@components/status-message';
 import tableStyles from '@components/table.module.css';
 import styles from '@features/catalog-import/import-page.module.css';
@@ -36,36 +37,67 @@ type UploadState =
   | { status: 'error'; error: unknown }
   | { status: 'success'; report: ImportCatalogResponse };
 
-function totalCards(report: ImportCatalogResponse): { label: string; value: number }[] {
+interface TotalCard {
+  label: string;
+  value: number;
+  tone: BadgeTone;
+}
+
+function totalCards(report: ImportCatalogResponse): TotalCard[] {
   const t = report.totals;
+  const card = (outcome: ImportOutcome, value: number): TotalCard => ({
+    label: OUTCOME_LABEL[outcome],
+    value,
+    tone: OUTCOME_TONE[outcome],
+  });
   return [
-    { label: 'Lidos', value: t.read },
-    { label: OUTCOME_LABEL[ImportOutcome.CREATED], value: t.created },
-    { label: OUTCOME_LABEL[ImportOutcome.LINKED_EXISTING], value: t.linkedExisting },
-    { label: OUTCOME_LABEL[ImportOutcome.ALREADY_LINKED], value: t.alreadyLinked },
-    { label: OUTCOME_LABEL[ImportOutcome.DUPLICATE_SAME_SELLER], value: t.duplicateSameSeller },
-    { label: OUTCOME_LABEL[ImportOutcome.INVALID], value: t.invalid },
+    { label: 'Lidos', value: t.read, tone: 'neutral' },
+    card(ImportOutcome.CREATED, t.created),
+    card(ImportOutcome.LINKED_EXISTING, t.linkedExisting),
+    card(ImportOutcome.ALREADY_LINKED, t.alreadyLinked),
+    card(ImportOutcome.DUPLICATE_SAME_SELLER, t.duplicateSameSeller),
+    card(ImportOutcome.INVALID, t.invalid),
   ];
+}
+
+function OrDash({ value }: { value: string | null }) {
+  return value ?? <span className={tableStyles.muted}>—</span>;
+}
+
+function UploadIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 16V4" />
+      <path d="m6 10 6-6 6 6" />
+      <path d="M4 20h16" />
+    </svg>
+  );
 }
 
 function ItemRow({ item }: { item: ImportItem }) {
   return (
     <tr>
-      <td>{item.index}</td>
+      <td className={`${tableStyles.num} ${tableStyles.muted}`}>{item.index}</td>
       <td>
         <Badge tone={OUTCOME_TONE[item.outcome]}>{item.outcome}</Badge>
       </td>
-      <td>{item.sellerName ?? '—'}</td>
+      <td className={tableStyles.strong}>
+        <OrDash value={item.sellerName} />
+      </td>
       <td>
         {item.productId !== null ? (
           <a href={routeHref.product(item.productId)}>{item.name ?? `Produto ${item.productId}`}</a>
         ) : (
-          (item.name ?? '—')
+          <OrDash value={item.name} />
         )}
       </td>
-      <td>{item.externalId ?? '—'}</td>
-      <td>{item.matchedBy ?? '—'}</td>
-      <td>{item.reason ?? ''}</td>
+      <td className={tableStyles.mono}>
+        <OrDash value={item.externalId} />
+      </td>
+      <td className={tableStyles.mono}>
+        <OrDash value={item.matchedBy} />
+      </td>
+      <td className={styles.reason}>{item.reason ?? ''}</td>
     </tr>
   );
 }
@@ -75,48 +107,57 @@ function Report({ report }: { report: ImportCatalogResponse }) {
   const items = filter === ALL ? report.items : report.items.filter((i) => i.outcome === filter);
 
   return (
-    <section aria-label="Relatório da importação">
+    <section aria-label="Relatório da importação" className={styles.section}>
       <h2>Relatório</h2>
       <ul className={styles.cards}>
         {totalCards(report).map((card) => (
-          <li key={card.label} className={styles.card} data-testid={`total-${card.label}`}>
+          <li key={card.label} className={`${styles.card} ${styles[card.tone]}`} data-testid={`total-${card.label}`}>
             <strong>{card.value}</strong>
             <span>{card.label}</span>
           </li>
         ))}
       </ul>
-      <label>
-        Filtrar por resultado{' '}
-        <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
-          <option value={ALL}>Todos</option>
-          {Object.values(ImportOutcome).map((outcome) => (
-            <option key={outcome} value={outcome}>
-              {outcome}
-            </option>
-          ))}
-        </select>
-      </label>
+
+      <div className={styles.toolbar}>
+        <label className={styles.filter}>
+          Filtrar por resultado
+          <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+            <option value={ALL}>Todos</option>
+            {Object.values(ImportOutcome).map((outcome) => (
+              <option key={outcome} value={outcome}>
+                {OUTCOME_LABEL[outcome]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className={styles.count}>
+          {items.length} de {report.items.length} itens
+        </p>
+      </div>
+
       {items.length === 0 ? (
         <StatusMessage kind="empty">Nenhum item para este filtro.</StatusMessage>
       ) : (
-        <table className={tableStyles.table}>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Resultado</th>
-              <th>Seller</th>
-              <th>Nome</th>
-              <th>externalId</th>
-              <th>matchedBy</th>
-              <th>Motivo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <ItemRow key={item.index} item={item} />
-            ))}
-          </tbody>
-        </table>
+        <div className={tableStyles.wrap}>
+          <table className={tableStyles.table}>
+            <thead>
+              <tr>
+                <th className={tableStyles.num}>#</th>
+                <th>Resultado</th>
+                <th>Seller</th>
+                <th>Nome</th>
+                <th>externalId</th>
+                <th>matchedBy</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <ItemRow key={item.index} item={item} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -124,10 +165,23 @@ function Report({ report }: { report: ImportCatalogResponse }) {
 
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<UploadState>({ status: 'idle' });
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setFile(event.target.files?.[0] ?? null);
+  };
+
+  const onDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setDragging(true);
+  };
+
+  const onDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    const dropped = event.dataTransfer.files[0];
+    if (dropped) setFile(dropped);
   };
 
   const onSubmit = (event: FormEvent) => {
@@ -142,13 +196,33 @@ export function ImportPage() {
 
   return (
     <div>
-      <h1>Importar catálogo</h1>
-      <form onSubmit={onSubmit}>
-        <label>
-          Arquivo JSON{' '}
-          <input type="file" accept=".json,application/json" onChange={onFileChange} />
-        </label>{' '}
-        <button type="submit" disabled={!file || state.status === 'loading'}>
+      <PageHeader
+        title="Importar catálogo"
+        subtitle="Envie o arquivo JSON de carga dos sellers (até 5 MB). Reenviar o mesmo arquivo não duplica nada."
+      />
+      <form onSubmit={onSubmit} className={styles.upload}>
+        <label
+          className={`${styles.dropzone} ${dragging ? styles.dragging : ''}`}
+          onDragOver={onDragOver}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+        >
+          <input type="file" accept=".json,application/json" onChange={onFileChange} className={styles.fileInput} />
+          <span className={styles.dropIcon}>
+            <UploadIcon />
+          </span>
+          <span className={styles.dropText}>
+            <span className={styles.dropTitle}>Arquivo JSON</span>
+            <span className={styles.dropHint}>
+              {file ? (
+                <span className={styles.fileName}>{file.name}</span>
+              ) : (
+                'Clique para escolher ou arraste o arquivo aqui'
+              )}
+            </span>
+          </span>
+        </label>
+        <button type="submit" className={styles.submit} disabled={!file || state.status === 'loading'}>
           Enviar
         </button>
       </form>

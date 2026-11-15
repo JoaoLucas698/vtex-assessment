@@ -1,4 +1,50 @@
-.table { width: 100%; border-collapse: collapse; }
-.table th, .table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-.table th { background: #f8fafc; }
-.diff { background: #fff7d6; }
+.wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.92rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.table th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.table tbody tr:hover td.diff { background: var(--diff-bg); }
+
+.diff { background: var(--diff-bg); }
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted { color: var(--muted); }
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+}
+
+.strong { font-weight: 600; }

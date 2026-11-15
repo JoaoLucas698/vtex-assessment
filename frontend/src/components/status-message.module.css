@@ -1,4 +1,44 @@
-.message { padding: 1rem; border-radius: 6px; margin: 1rem 0; }
-.loading { background: #eef2f7; color: #334155; }
-.error { background: #fdecec; color: #991b1b; }
-.empty { background: #f5f5f5; color: #555; }
+.message {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 1rem 0;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.loading {
+  background: var(--surface);
+  color: var(--muted);
+}
+.loading::before {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+.error {
+  background: var(--danger-bg);
+  border-color: color-mix(in srgb, var(--danger-fg) 25%, transparent);
+  color: var(--danger-fg);
+  font-weight: 500;
+}
+
+.empty {
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--border-strong);
+  color: var(--muted);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

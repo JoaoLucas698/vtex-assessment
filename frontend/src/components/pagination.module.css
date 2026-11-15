@@ -1,1 +1,13 @@
-.pagination { display: flex; gap: 1rem; align-items: center; margin: 1rem 0; }
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.info {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
