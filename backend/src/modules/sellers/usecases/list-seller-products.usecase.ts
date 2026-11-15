@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SellerProductRepository } from '@modules/sellers/repositories/seller-product.repository';
 import { SellerRepository } from '@modules/sellers/repositories/seller.repository';
+import { SellerProductViewService } from '@modules/sellers/services/seller-product-view.service';
 import type {
   ListSellerProductsInput,
   ListSellerProductsOutput,
@@ -15,6 +16,7 @@ export class ListSellerProductsUseCase {
   constructor(
     private readonly sellerRepository: SellerRepository,
     private readonly sellerProductRepository: SellerProductRepository,
+    private readonly sellerProductViewService: SellerProductViewService,
   ) {}
 
   async execute(
@@ -60,15 +62,7 @@ export class ListSellerProductsUseCase {
     );
     return Result.success({
       seller: { id: seller.id, sellerName: seller.sellerName },
-      items: items.map((link) => ({
-        id: link.id,
-        externalId: link.externalId,
-        name: link.name,
-        brand: link.brand,
-        category: link.category,
-        matchedBy: link.matchedBy,
-        product: { id: link.product.id, name: link.product.name },
-      })),
+      items: items.map((link) => this.sellerProductViewService.toOutput(link)),
       total,
       page: input.page,
       pageSize: input.pageSize,

@@ -63,7 +63,11 @@ export class SellerProductRepository {
         orderBy: { id: 'asc' },
         skip: (params.page - 1) * params.pageSize,
         take: params.pageSize,
-        include: { product: { select: { id: true, name: true } } },
+        include: {
+          product: {
+            select: { id: true, name: true, brand: true, category: true },
+          },
+        },
       }),
       client.sellerProduct.count({ where: { sellerId } }),
     ]);

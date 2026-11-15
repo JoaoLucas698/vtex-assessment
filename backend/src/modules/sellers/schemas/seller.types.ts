@@ -18,10 +18,13 @@ export interface PaginatedResult<T> {
 export type SellerWithProductCount = Seller & { productCount: number };
 
 export type SellerProductWithProduct = SellerProduct & {
-  product: Pick<Product, 'id' | 'name'>;
+  product: Pick<Product, 'id' | 'name' | 'brand' | 'category'>;
 };
 
-/** Dados para criar um vínculo seller ↔ produto (D-014: null = seller não informou). */
+/**
+ * Dados para criar um vínculo seller ↔ produto. D-014: `null` = seller não
+ * informou; é gravado assim, e só a leitura usa o dado do produto oficial.
+ */
 export interface CreateSellerProductData {
   readonly productId: number;
   readonly sellerId: number;
