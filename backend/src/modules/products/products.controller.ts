@@ -1,11 +1,17 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  LIST_PRODUCTS_BAD_REQUEST_EXAMPLE,
+  PRODUCT_DETAIL_BAD_REQUEST_EXAMPLE,
+  PRODUCT_NOT_FOUND_EXAMPLE,
+} from '@modules/products/consts/products.swagger-examples';
 import { GetProductDetailResponseDto } from '@modules/products/schemas/dto/get-product-detail.response.dto';
 import { ListProductsRequestDto } from '@modules/products/schemas/dto/list-products.request.dto';
 import { ListProductsResponseDto } from '@modules/products/schemas/dto/list-products.response.dto';
 import { ProductsErrorCode } from '@modules/products/schemas/products.errors';
 import { GetProductDetailUseCase } from '@modules/products/usecases/get-product-detail.usecase';
 import { ListProductsUseCase } from '@modules/products/usecases/list-products.usecase';
+import { CommonErrorCode } from '@shared/errors/error-codes';
 import { unwrapResult } from '@shared/errors/unwrap-result';
 
 @ApiTags('products')
@@ -21,15 +27,8 @@ export class ProductsController {
   @ApiResponse({ status: 200, type: ListProductsResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'Parâmetros de consulta inválidos.',
-    schema: {
-      example: {
-        statusCode: 400,
-        code: 'VALIDATION_ERROR',
-        message: 'Requisição inválida',
-        details: ['pageSize must not be greater than 100'],
-      },
-    },
+    description: `Parâmetros de consulta inválidos (${CommonErrorCode.VALIDATION_ERROR}).`,
+    schema: { example: LIST_PRODUCTS_BAD_REQUEST_EXAMPLE },
   })
   async list(
     @Query() query: ListProductsRequestDto,
@@ -50,25 +49,13 @@ export class ProductsController {
   @ApiResponse({ status: 200, type: GetProductDetailResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'Id inválido.',
-    schema: {
-      example: {
-        statusCode: 400,
-        code: 'VALIDATION_ERROR',
-        message: 'Validation failed (numeric string is expected)',
-      },
-    },
+    description: `Id inválido (${CommonErrorCode.VALIDATION_ERROR}).`,
+    schema: { example: PRODUCT_DETAIL_BAD_REQUEST_EXAMPLE },
   })
   @ApiResponse({
     status: 404,
     description: `Produto não encontrado (${ProductsErrorCode.PRODUCT_NOT_FOUND}).`,
-    schema: {
-      example: {
-        statusCode: 404,
-        code: ProductsErrorCode.PRODUCT_NOT_FOUND,
-        message: 'Produto 999 não encontrado.',
-      },
-    },
+    schema: { example: PRODUCT_NOT_FOUND_EXAMPLE },
   })
   async detail(
     @Param('id', ParseIntPipe) id: number,

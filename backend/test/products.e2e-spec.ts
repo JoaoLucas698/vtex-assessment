@@ -27,6 +27,8 @@ interface DetailBody {
     sellerId: number;
     sellerName: string;
     externalId: string | null;
+    brand: string | null;
+    category: string | null;
     matchedBy: string;
   }[];
 }
@@ -209,6 +211,22 @@ describe('Products e2e', () => {
         name: 'TENIS  AIR MAX',
         matchedBy: 'normalized_key',
       });
+    });
+
+    it('usa marca e categoria do produto oficial quando o seller não informou', async () => {
+      const body = await bodyOf(
+        http().get(`/api/products/${ids.tenis}`).expect(200),
+      );
+      const loose = (body as DetailBody).sellers[1];
+
+      expect(loose.brand).toBe('Nike');
+      expect(loose.category).toBe('Cat');
+
+      const stored = await prisma.sellerProduct.findFirstOrThrow({
+        where: { productId: ids.tenis, externalId: null },
+      });
+      expect(stored.brand).toBeNull();
+      expect(stored.category).toBeNull();
     });
 
     it('devolve a marca com aspa exatamente igual', async () => {

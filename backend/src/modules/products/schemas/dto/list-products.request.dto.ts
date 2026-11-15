@@ -1,19 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { PaginationRequestDto } from '@shared/pagination/pagination.request.dto';
 
-export const DEFAULT_PAGE = 1;
-export const DEFAULT_PAGE_SIZE = 20;
-export const MAX_PAGE_SIZE = 100;
-
-export class ListProductsRequestDto {
+/** Query da listagem: `page`/`pageSize` vêm do `PaginationRequestDto` compartilhado (D-060). */
+export class ListProductsRequestDto extends PaginationRequestDto {
   @ApiPropertyOptional({
     description:
       'Termo de busca. Ignora maiúsculas, acentos e espaços repetidos; procura na marca e no nome.',
@@ -23,30 +13,4 @@ export class ListProductsRequestDto {
   @IsString()
   @MaxLength(200)
   q?: string;
-
-  @ApiPropertyOptional({
-    description: 'Página (começa em 1).',
-    example: 1,
-    default: DEFAULT_PAGE,
-    minimum: 1,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page: number = DEFAULT_PAGE;
-
-  @ApiPropertyOptional({
-    description: 'Itens por página (máximo 100).',
-    example: 20,
-    default: DEFAULT_PAGE_SIZE,
-    minimum: 1,
-    maximum: MAX_PAGE_SIZE,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(MAX_PAGE_SIZE)
-  pageSize: number = DEFAULT_PAGE_SIZE;
 }

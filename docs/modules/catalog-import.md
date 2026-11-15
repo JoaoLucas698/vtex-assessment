@@ -209,12 +209,15 @@ A mesma regra é replicada em SQL no backfill da migration (D-019). Por isso ela
 | `ImportReportService` | `services/import-report.service.ts` | Monta as linhas do relatório e os totais, na ordem do arquivo. Puro. |
 | `SellerRepository`, `SellerProductRepository` | módulo `sellers` | Busca/criação de seller e de vínculo, atualização dos dados do seller. Sempre com o `tx`. |
 | `ProductRepository` | módulo `products` | Busca por `normalizedKey` e criação do produto. Sempre com o `tx`. |
-| Tipos de domínio | `schemas/catalog-import.types.ts` | Enums `MatchedBy`, `ImportItemOutcome`, `MatchDecisionType`; `MatchInput`, `MatchDecision`; itens do arquivo, relatório, limite de tamanho. |
+| Tipos de domínio | `schemas/catalog-import.types.ts` | Enums `MatchedBy`, `ImportItemOutcome`, `MatchDecisionType`; `MatchInput`, `MatchDecision`; itens do arquivo, relatório. |
+| Constantes | `consts/catalog-import.consts.ts` | Limite de 5 MB do upload, nome do campo multipart (`file`) e nomes dos campos de cada item (`CatalogItemField`) (D-038). |
+| Exemplos do Swagger | `consts/catalog-import.swagger-examples.ts` | Relatório da resposta 200 (`satisfies ImportCatalogOutput`) e exemplos de 400 e 413 (`satisfies ErrorResponseBody`) (D-038). |
 | Erros | `schemas/catalog-import.errors.ts` | `FILE_REQUIRED`, `INVALID_FILE`, `EMPTY_FILE` (400), registrados no mapa de status. |
 | DTOs | `schemas/dto/import-catalog.request.dto.ts`, `import-catalog.response.dto.ts` | Campo `file` para o Swagger; relatório (`totals`, `items`). |
 
 ## Decisões relacionadas
 
+- [D-038](../decisions.md#d-038--pasta-consts-por-módulo-para-constantes-e-exemplos-do-swagger) — constantes e exemplos do Swagger em `consts/`.
 - [D-005](../decisions.md#d-005--critério-de-mesmo-produto-normalizedkey--marca--nome-normalizados) — critério de "mesmo produto".
 - [D-007](../decisions.md#d-007--reimportação-idempotente) — reimportação idempotente.
 - [D-008](../decisions.md#d-008--seller-criado-automaticamente-pelo-sellername) — seller criado pelo nome.
