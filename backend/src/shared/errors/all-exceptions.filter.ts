@@ -8,13 +8,9 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { CommonErrorCode } from '@shared/errors/error-codes';
+import type { ErrorResponseBody } from '@shared/errors/error-response.types';
 
-interface ErrorBody {
-  statusCode: number;
-  code: string;
-  message: string;
-  details?: unknown;
-}
+type ErrorBody = ErrorResponseBody;
 
 /** Filtro global: `HttpException` mantém o status; qualquer outro erro vira 500 sem vazar stack. */
 @Catch()

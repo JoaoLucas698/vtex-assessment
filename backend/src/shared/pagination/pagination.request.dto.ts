@@ -5,8 +5,9 @@ import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
-} from '@modules/sellers/schemas/seller.types';
+} from '@shared/pagination/pagination.types';
 
+/** Query `page`/`pageSize` de qualquer listagem paginada (D-060). */
 export class PaginationRequestDto {
   @ApiPropertyOptional({
     description: 'Número da página, começando em 1.',

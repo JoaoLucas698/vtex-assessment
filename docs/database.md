@@ -105,6 +105,18 @@ npx prisma migrate resolve --applied 0_init           # só uma vez: o banco for
 npx prisma migrate deploy
 ```
 
+A cópia precisa ser feita **antes** de subir a API e antes do `migrate resolve`. Se a API subir primeiro, o driver cria um `catalog.dev.db` vazio; o `cp` sem sobrescrever não acontece, o `migrate resolve` marca a `0_init` como aplicada sem criar as tabelas e o `migrate deploy` falha (P3018). A migration `consolidate_catalog` começa com uma trava que, nesse caso, para com o erro `CHECK constraint failed: banco_sem_as_tabelas_originais_copie_database_catalog_db_para_o_DATABASE_URL` (D-057).
+
+Para recuperar, apague o banco quebrado e refaça os passos:
+
+```bash
+rm database/catalog.dev.db
+cp database/catalog.db database/catalog.dev.db
+cd backend
+npx prisma migrate resolve --applied 0_init
+npx prisma migrate deploy
+```
+
 ## Números antes e depois (banco real)
 
 | Medida | Antes | Depois |

@@ -76,6 +76,9 @@ Cada módulo de `backend/src/modules/<modulo>/` segue **exatamente** esta estrut
 │   └── <nome>.service.ts
 ├── repositories/
 │   └── <entidade>.repository.ts
+├── consts/
+│   ├── <modulo>.consts.ts              # valores fixos do módulo (limites, nomes de campo), tipados
+│   └── <modulo>.swagger-examples.ts    # exemplos do Swagger, tipados com `satisfies` pelo contrato real
 ├── schemas/
 │   ├── <entidade>.types.ts         # tipos de domínio do módulo (derivados dos tipos gerados pelo Prisma)
 │   ├── <modulo>.errors.ts          # erros de negócio do módulo (usados no Result)
@@ -95,6 +98,7 @@ Cada módulo de `backend/src/modules/<modulo>/` segue **exatamente** esta estrut
 | **Service**    | Lógica de domínio reutilizável e, de preferência, **pura** (ex.: normalização, parsing, regras de comparação).                                                                              | Acesso ao banco, conhecer request/response HTTP.                                      |
 | **Repository** | **Único** lugar que usa o `PrismaService` para sua entidade. Consultas nomeadas pelo propósito (ex.: `findByEan`, `linkToSeller`). Aceita um client de transação opcional (`tx`).           | Regra de negócio.                                                                     |
 | **Schema**     | Tipos de domínio do módulo e DTOs (contratos da API, com `class-validator` + `@ApiProperty`). O modelo das tabelas fica só no `prisma/schema.prisma`.                                       | Lógica.                                                                               |
+| **Consts**     | Valores fixos do módulo usados em mais de um arquivo (limites, nomes de campo) e exemplos do Swagger dos controllers, sempre tipados (`as const`, `satisfies <TipoDeSaída>` ou `satisfies ErrorResponseBody`). | Lógica, objetos montados dentro de controller ou de decorator.                        |
 
 ### Regras de dependência
 
@@ -214,6 +218,11 @@ export class TransactionManager {
 - Um usecase por arquivo, com um único método público: `execute(input): Promise<Result<Output>>`. Todos os outros métodos são `private`.
 - Erros de negócio são retornados como `Result.error(...)` com erros tipados do módulo. Nunca com `throw`.
 - Valores fixos de domínio (status, tipos, critérios) ficam numa constante/enum do TypeScript, nunca como string solta no código.
+- Constantes e exemplos ficam em `consts/` do módulo, nunca declarados no controller ou em outro arquivo de camada:
+  - `consts/<modulo>.consts.ts`: valores fixos usados em mais de um arquivo (ex.: limite de upload, nome do campo multipart, nomes de campo do arquivo de entrada).
+  - `consts/<modulo>.swagger-examples.ts`: todo `example`/`examples` de `@ApiResponse`. Exemplo de sucesso usa `satisfies <Output do usecase>`; exemplo de erro usa `satisfies ErrorResponseBody` (de `@shared/errors/error-response.types`), com `statusCode` vindo de `HttpStatus` e `code` vindo do enum de erro. Assim o exemplo quebra o build se o contrato mudar.
+  - Enums de domínio e de códigos de erro continuam em `schemas/` (`<entidade>.types.ts` e `<modulo>.errors.ts`). Constantes privadas de um único arquivo (ex.: regex de um service, `select` de um repository) podem ficar no próprio arquivo.
+  - O `example` de cada campo no `@ApiProperty` dos DTOs continua no DTO.
 - TypeScript em `strict`. Proibido `any` sem comentário justificando.
 
 ---
