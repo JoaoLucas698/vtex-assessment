@@ -2,12 +2,12 @@ import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ListSellerProductsResponseDto } from '@modules/sellers/schemas/dto/list-seller-products.response.dto';
 import { ListSellersResponseDto } from '@modules/sellers/schemas/dto/list-sellers.response.dto';
-import { PaginationRequestDto } from '@modules/sellers/schemas/dto/pagination.request.dto';
 import { SellerErrorCode } from '@modules/sellers/schemas/sellers.errors';
 import { ListSellerProductsUseCase } from '@modules/sellers/usecases/list-seller-products.usecase';
 import { ListSellersUseCase } from '@modules/sellers/usecases/list-sellers.usecase';
 import { CommonErrorCode } from '@shared/errors/error-codes';
 import { unwrapResult } from '@shared/errors/unwrap-result';
+import { PaginationRequestDto } from '@shared/pagination/pagination.request.dto';
 
 @ApiTags('sellers')
 @Controller('sellers')

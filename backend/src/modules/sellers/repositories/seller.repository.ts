@@ -3,8 +3,8 @@ import type { Prisma, Seller } from '@prisma/client';
 import type {
   PaginatedResult,
   PaginationParams,
-  SellerWithProductCount,
-} from '@modules/sellers/schemas/seller.types';
+} from '@shared/pagination/pagination.types';
+import type { SellerWithProductCount } from '@modules/sellers/schemas/seller.types';
 import { PrismaService } from '@shared/prisma/prisma.service';
 
 @Injectable()

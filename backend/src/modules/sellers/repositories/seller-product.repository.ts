@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma, SellerProduct } from '@prisma/client';
 import type {
-  CreateSellerProductData,
   PaginatedResult,
   PaginationParams,
+} from '@shared/pagination/pagination.types';
+import type {
+  CreateSellerProductData,
   SellerDataUpdate,
   SellerProductWithProduct,
 } from '@modules/sellers/schemas/seller.types';

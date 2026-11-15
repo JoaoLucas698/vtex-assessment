@@ -8,6 +8,7 @@ import type {
 } from '@modules/sellers/schemas/seller.types';
 import { SellerErrors } from '@modules/sellers/schemas/sellers.errors';
 import type { AppError } from '@shared/errors/app-error';
+import { validatePagination } from '@shared/pagination/validate-pagination';
 import { Result } from '@shared/result/result';
 import type { Seller } from '@prisma/client';
 
@@ -35,13 +36,7 @@ export class ListSellerProductsUseCase {
   private validatePagination(
     input: ListSellerProductsInput,
   ): Result<ListSellerProductsInput, AppError> {
-    const valid =
-      Number.isInteger(input.page) &&
-      input.page >= 1 &&
-      Number.isInteger(input.pageSize) &&
-      input.pageSize >= 1;
-    if (!valid) return Result.error(SellerErrors.invalidPagination());
-    return Result.success(input);
+    return validatePagination(input);
   }
 
   private async findSeller(
