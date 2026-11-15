@@ -1,16 +1,23 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { catalogApi } from '@api/catalog-api';
 import { errorText } from '@components/error-text';
+import { PageHeader } from '@components/page-header';
 import { Pagination } from '@components/pagination';
 import { StatusMessage } from '@components/status-message';
 import tableStyles from '@components/table.module.css';
+import styles from '@features/catalog/catalog-page.module.css';
 import { routeHref } from '@/hooks/use-hash-route';
 import { useRequest } from '@/hooks/use-request';
 
 const PAGE_SIZE = 20;
 
+function OrDash({ value }: { value: string | null }) {
+  return value ?? <span className={tableStyles.muted}>—</span>;
+}
+
 export function CatalogPage() {
+  const searchId = useId();
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -29,44 +36,69 @@ export function CatalogPage() {
 
   return (
     <div>
-      <h1>Catálogo</h1>
-      <form onSubmit={onSearch} role="search">
-        <label>
-          Buscar por marca ou nome{' '}
-          <input type="search" value={input} onChange={(e) => setInput(e.target.value)} />
-        </label>{' '}
-        <button type="submit">Buscar</button>
-      </form>
+      <PageHeader title="Catálogo" subtitle="Produtos oficiais, consolidados a partir dos arquivos dos sellers." />
+
+      <div className={styles.toolbar}>
+        <form onSubmit={onSearch} role="search" className={styles.search}>
+          <div className={styles.field}>
+            <label htmlFor={searchId} className={styles.label}>
+              Buscar por marca ou nome
+            </label>
+            <input
+              id={searchId}
+              type="search"
+              placeholder="Ex.: samsung galaxy"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+          </div>
+          <button type="submit">Buscar</button>
+        </form>
+        {state.status === 'success' && state.data.items.length > 0 && (
+          <p className={styles.count}>{state.data.total} produto(s)</p>
+        )}
+      </div>
+
       {state.status === 'loading' && <StatusMessage kind="loading">Carregando produtos...</StatusMessage>}
       {state.status === 'error' && <StatusMessage kind="error">{errorText(state.error)}</StatusMessage>}
       {state.status === 'success' && state.data.items.length === 0 && (
         <StatusMessage kind="empty">Nenhum produto encontrado.</StatusMessage>
       )}
+
       {state.status === 'success' && state.data.items.length > 0 && (
         <>
-          <p>{state.data.total} produto(s)</p>
-          <table className={tableStyles.table}>
-            <thead>
-              <tr>
-                <th>Produto</th>
-                <th>Marca</th>
-                <th>Categoria</th>
-                <th>Sellers</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.data.items.map((product) => (
-                <tr key={product.id}>
-                  <td>
-                    <a href={routeHref.product(product.id)}>{product.name}</a>
-                  </td>
-                  <td>{product.brand ?? '—'}</td>
-                  <td>{product.category ?? '—'}</td>
-                  <td>{product.sellersCount}</td>
+          <div className={tableStyles.wrap}>
+            <table className={tableStyles.table}>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Marca</th>
+                  <th>Categoria</th>
+                  <th className={tableStyles.num}>Sellers</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {state.data.items.map((product) => (
+                  <tr key={product.id}>
+                    <td>
+                      <a href={routeHref.product(product.id)} className={styles.productLink}>
+                        {product.name}
+                      </a>
+                    </td>
+                    <td>
+                      <OrDash value={product.brand} />
+                    </td>
+                    <td>
+                      <OrDash value={product.category} />
+                    </td>
+                    <td className={tableStyles.num}>
+                      <span className={styles.sellers}>{product.sellersCount}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <Pagination
             page={state.data.page}
             pageSize={state.data.pageSize}

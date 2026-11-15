@@ -328,6 +328,12 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 **Decisão:** C. Rotas `#/catalog`, `#/import` e `#/products/:id`, em `src/hooks/use-hash-route.ts`.
 **Consequências:** zero dependências novas, links compartilháveis e botão voltar funcionando. Em produção, com mais telas ou rotas aninhadas, valeria migrar para `react-router-dom`.
 
+## D-091 — Visual do frontend com tokens CSS, sem biblioteca de UI
+**Contexto:** as telas estavam só com estilo padrão do navegador. O `CLAUDE.md` §8 pede CSS simples ou CSS Modules e nenhuma biblioteca de UI pesada sem justificativa.
+**Opções consideradas:** A) biblioteca de componentes (MUI, Chakra): visual pronto, mas dependência grande fora da lista do §1; B) Tailwind: exige build e convenção nova; C) variáveis CSS (cores, raio, sombra) em `index.css` + CSS Modules por componente e por tela.
+**Decisão:** C. Tokens em `:root`, com tema escuro por `prefers-color-scheme`. Estilo base de botão, campo e link no `index.css` (o botão `type="submit"` é o primário). Componentes novos: `PageHeader`; tabelas dentro de um `wrap` com rolagem horizontal própria, para não rolar a página no celular.
+**Consequências:** nenhuma dependência nova e o CSS final tem cerca de 11 kB. Mudar a paleta é trocar os tokens. Os textos e papéis de acessibilidade das telas não mudaram, então os testes continuam valendo. Em produção, com mais telas, valeria um design system próprio ou uma biblioteca.
+
 ## D-100 — Docker e Docker Compose para rodar o projeto
 **Contexto:** o `CLAUDE.md` §1 não lista Docker na stack. O avaliador precisa rodar backend e frontend sem instalar Node 26, Prisma nem configurar banco, e o banco fornecido não tem `_prisma_migrations` (D-055).
 **Opções consideradas:** A) só README com comandos npm — exige Node 26 e vários passos manuais; B) um container com backend e frontend juntos — mistura responsabilidades; C) dois serviços no Compose: `backend` (`node:26-slim`) e `frontend` (build Vite com `node:26-slim`, servido por `nginx:alpine`).
