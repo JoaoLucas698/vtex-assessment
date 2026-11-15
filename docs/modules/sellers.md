@@ -35,9 +35,10 @@ flowchart LR
 - `SellerRepository`: `findByName(sellerName, tx?)`, `create(sellerName, tx?)`, `findById(id, tx?)`, `list(params, tx?)` (com `productCount`).
 - `SellerProductRepository`: `findBySellerAndExternalId(sellerId, externalId, tx?)`, `findBySellerAndProduct(sellerId, productId, tx?)`, `create(data, tx?)`, `updateSellerData(id, {name, brand, category}, tx?)`, `listBySeller(sellerId, params, tx?)` (traz `id`, `name`, `brand` e `category` do produto oficial). Todos aceitam `tx` opcional e retornam o dado ou `null`.
 - Schemas: `seller.types.ts`, `sellers.errors.ts` (registra `SELLER_NOT_FOUND` -> 404, D-032), DTOs de resposta com Swagger. A query de paginação usa o `PaginationRequestDto` compartilhado (D-060).
+- Consts: `consts/sellers.swagger-examples.ts` com os exemplos de 400 e 404 do Swagger, tipados com `ErrorResponseBody` (D-038).
 
 ## Decisões relacionadas
-D-002, D-007, D-008, D-012, D-014, D-024, D-032, D-060, D-061 em `docs/decisions.md`.
+D-002, D-007, D-008, D-012, D-014, D-024, D-032, D-038, D-060, D-061 em `docs/decisions.md`.
 
 ## Testes
 - Unitários dos dois usecases (sucesso, seller inexistente, paginação inválida) com `mockDeep`.
