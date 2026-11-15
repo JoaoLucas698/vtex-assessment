@@ -42,7 +42,8 @@ export class SellerProductResponseDto {
   name!: string;
 
   @ApiPropertyOptional({
-    description: 'Marca como o seller enviou. Null se o seller não informou.',
+    description:
+      'Marca como o seller enviou. Se o seller não informou, vem a marca do produto oficial do catálogo; null só se os dois forem nulos.',
     example: 'Dell',
     nullable: true,
     type: String,
@@ -51,7 +52,7 @@ export class SellerProductResponseDto {
 
   @ApiPropertyOptional({
     description:
-      'Categoria como o seller enviou. Null se o seller não informou.',
+      'Categoria como o seller enviou. Se o seller não informou, vem a categoria do produto oficial do catálogo; null só se as duas forem nulas.',
     example: 'Notebooks',
     nullable: true,
     type: String,

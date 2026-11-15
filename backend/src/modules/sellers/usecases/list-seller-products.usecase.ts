@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SellerProductRepository } from '@modules/sellers/repositories/seller-product.repository';
 import { SellerRepository } from '@modules/sellers/repositories/seller.repository';
+import { SellerProductViewService } from '@modules/sellers/services/seller-product-view.service';
 import type {
   ListSellerProductsInput,
   ListSellerProductsOutput,
 } from '@modules/sellers/schemas/seller.types';
 import { SellerErrors } from '@modules/sellers/schemas/sellers.errors';
 import type { AppError } from '@shared/errors/app-error';
+import { validatePagination } from '@shared/pagination/validate-pagination';
 import { Result } from '@shared/result/result';
 import type { Seller } from '@prisma/client';
 
@@ -15,6 +17,7 @@ export class ListSellerProductsUseCase {
   constructor(
     private readonly sellerRepository: SellerRepository,
     private readonly sellerProductRepository: SellerProductRepository,
+    private readonly sellerProductViewService: SellerProductViewService,
   ) {}
 
   async execute(
@@ -33,13 +36,7 @@ export class ListSellerProductsUseCase {
   private validatePagination(
     input: ListSellerProductsInput,
   ): Result<ListSellerProductsInput, AppError> {
-    const valid =
-      Number.isInteger(input.page) &&
-      input.page >= 1 &&
-      Number.isInteger(input.pageSize) &&
-      input.pageSize >= 1;
-    if (!valid) return Result.error(SellerErrors.invalidPagination());
-    return Result.success(input);
+    return validatePagination(input);
   }
 
   private async findSeller(
@@ -60,15 +57,7 @@ export class ListSellerProductsUseCase {
     );
     return Result.success({
       seller: { id: seller.id, sellerName: seller.sellerName },
-      items: items.map((link) => ({
-        id: link.id,
-        externalId: link.externalId,
-        name: link.name,
-        brand: link.brand,
-        category: link.category,
-        matchedBy: link.matchedBy,
-        product: { id: link.product.id, name: link.product.name },
-      })),
+      items: items.map((link) => this.sellerProductViewService.toOutput(link)),
       total,
       page: input.page,
       pageSize: input.pageSize,

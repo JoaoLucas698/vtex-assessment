@@ -2,6 +2,7 @@ import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
 import { ProductRepository } from '@modules/products/repositories/product.repository';
 import { ListProductsUseCase } from '@modules/products/usecases/list-products.usecase';
+import { CommonErrorCode } from '@shared/errors/error-codes';
 
 describe('ListProductsUseCase', () => {
   let sut: ListProductsUseCase;
@@ -63,6 +64,24 @@ describe('ListProductsUseCase', () => {
       pageSize: 20,
     });
   });
+
+  it.each([
+    { page: 0, pageSize: 20 },
+    { page: 1, pageSize: 0 },
+    { page: 1.5, pageSize: 20 },
+    { page: 1, pageSize: 101 },
+  ])(
+    'retorna VALIDATION_ERROR para paginação inválida %j sem buscar',
+    async (input) => {
+      const result = await sut.execute(input);
+
+      expect(result.isFailure).toBe(true);
+      if (result.isFailure) {
+        expect(result.error.code).toBe(CommonErrorCode.VALIDATION_ERROR);
+      }
+      expect(productRepository.search).not.toHaveBeenCalled();
+    },
+  );
 
   it('não rejeita termo malicioso: só repassa o retorno do normalizer', async () => {
     productNormalizer.normalize.mockReturnValue('x; drop table product; --');

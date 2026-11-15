@@ -1,3 +1,9 @@
+import type {
+  PaginatedOutput,
+  PaginatedResult,
+  PaginationParams,
+} from '@shared/pagination/pagination.types';
+
 /** Produto oficial como aparece na listagem. */
 export interface ProductListItem {
   id: number;
@@ -7,17 +13,12 @@ export interface ProductListItem {
   sellersCount: number;
 }
 
-export interface ProductSearchParams {
+export interface ProductSearchParams extends PaginationParams {
   /** Termo já normalizado (ver `ProductNormalizerService.normalize`). Vazio não filtra. */
   q: string;
-  page: number;
-  pageSize: number;
 }
 
-export interface ProductSearchResult {
-  items: ProductListItem[];
-  total: number;
-}
+export type ProductSearchResult = PaginatedResult<ProductListItem>;
 
 export interface CreateProductData {
   name: string;
@@ -54,15 +55,8 @@ export interface ProductWithSellers {
   sellers: ProductSellerEntry[];
 }
 
-export interface ListProductsInput {
+export interface ListProductsInput extends PaginationParams {
   q?: string;
-  page: number;
-  pageSize: number;
 }
 
-export interface ListProductsOutput {
-  items: ProductListItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
+export type ListProductsOutput = PaginatedOutput<ProductListItem>;

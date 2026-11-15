@@ -1,27 +1,20 @@
 /** Tipos de domínio do módulo `sellers` (derivados dos tipos gerados pelo Prisma). */
 import type { Product, Seller, SellerProduct } from '@prisma/client';
-
-export const DEFAULT_PAGE = 1;
-export const DEFAULT_PAGE_SIZE = 20;
-export const MAX_PAGE_SIZE = 100;
-
-export interface PaginationParams {
-  readonly page: number;
-  readonly pageSize: number;
-}
-
-export interface PaginatedResult<T> {
-  readonly items: T[];
-  readonly total: number;
-}
+import type {
+  PaginatedOutput,
+  PaginationParams,
+} from '@shared/pagination/pagination.types';
 
 export type SellerWithProductCount = Seller & { productCount: number };
 
 export type SellerProductWithProduct = SellerProduct & {
-  product: Pick<Product, 'id' | 'name'>;
+  product: Pick<Product, 'id' | 'name' | 'brand' | 'category'>;
 };
 
-/** Dados para criar um vínculo seller ↔ produto (D-014: null = seller não informou). */
+/**
+ * Dados para criar um vínculo seller ↔ produto. D-014: `null` = seller não
+ * informou; é gravado assim, e só a leitura usa o dado do produto oficial.
+ */
 export interface CreateSellerProductData {
   readonly productId: number;
   readonly sellerId: number;
@@ -50,12 +43,7 @@ export interface SellerSummaryOutput {
   readonly productCount: number;
 }
 
-export interface ListSellersOutput {
-  readonly items: SellerSummaryOutput[];
-  readonly total: number;
-  readonly page: number;
-  readonly pageSize: number;
-}
+export type ListSellersOutput = PaginatedOutput<SellerSummaryOutput>;
 
 export interface SellerProductOutput {
   readonly id: number;
@@ -67,10 +55,6 @@ export interface SellerProductOutput {
   readonly product: { readonly id: number; readonly name: string };
 }
 
-export interface ListSellerProductsOutput {
+export type ListSellerProductsOutput = PaginatedOutput<SellerProductOutput> & {
   readonly seller: { readonly id: number; readonly sellerName: string };
-  readonly items: SellerProductOutput[];
-  readonly total: number;
-  readonly page: number;
-  readonly pageSize: number;
-}
+};

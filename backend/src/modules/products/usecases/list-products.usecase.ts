@@ -7,6 +7,7 @@ import type {
 } from '@modules/products/schemas/product.types';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
 import type { AppError } from '@shared/errors/app-error';
+import { validatePagination } from '@shared/pagination/validate-pagination';
 import { Result } from '@shared/result/result';
 
 @Injectable()
@@ -19,6 +20,9 @@ export class ListProductsUseCase {
   async execute(
     input: ListProductsInput,
   ): Promise<Result<ListProductsOutput, AppError>> {
+    const validated = this.validatePagination(input);
+    if (validated.isFailure) return validated;
+
     const query = this.normalizeQuery(input);
     if (query.isFailure) return query;
 
@@ -26,6 +30,13 @@ export class ListProductsUseCase {
     if (found.isFailure) return found;
 
     return this.buildOutput(found.value, input);
+  }
+
+  /** Defesa para chamadas fora do HTTP: pela API o `ListProductsRequestDto` já garante estes limites. */
+  private validatePagination(
+    input: ListProductsInput,
+  ): Result<ListProductsInput, AppError> {
+    return validatePagination(input);
   }
 
   private normalizeQuery(input: ListProductsInput): Result<string, AppError> {
