@@ -20,7 +20,7 @@ flowchart LR
   L --> R[ProductRepository.search]
   D --> R2[ProductRepository.findByIdWithSellers]
 ```
-Listagem: `validatePagination` (função compartilhada, D-060) -> `normalizeQuery` -> `searchProducts` -> `buildOutput`. Detalhe: `findProduct` (devolve `PRODUCT_NOT_FOUND` quando o repository retorna `null`) -> `fillMissingSellerData` (fallback de `brand`/`category` para o produto oficial, D-014).
+Listagem: `validatePagination` (função compartilhada, D-060) -> `normalizeQuery` -> `searchProducts` -> `buildOutput`. Detalhe: `findProduct` (devolve `PRODUCT_NOT_FOUND` quando o repository retorna `null`) -> `fillMissingSellerData` (fallback de `brand`/`category` para o produto oficial, D-014, pela função compartilhada `fillFromOfficialProduct`, D-061).
 
 ## Regras de negócio
 - A busca ignora maiúsculas, acentos e espaços repetidos: o termo é normalizado e comparado com `contains` em `normalizedKey` (marca e nome normalizados).
@@ -38,7 +38,7 @@ Listagem: `validatePagination` (função compartilhada, D-060) -> `normalizeQuer
 - Schemas: `product.types.ts`, `products.errors.ts` (`PRODUCT_NOT_FOUND` registrado com `registerErrorStatuses`) e DTOs de request e response com Swagger. `ListProductsRequestDto` herda `page`/`pageSize` do `PaginationRequestDto` compartilhado e só acrescenta `q`.
 
 ## Decisões relacionadas
-D-004, D-005, D-013, D-014, D-015, D-021, D-024, D-032, D-060, D-070 em `docs/decisions.md`.
+D-004, D-005, D-013, D-014, D-015, D-021, D-024, D-032, D-060, D-061, D-070 em `docs/decisions.md`.
 
 ## Testes
 - Unitários dos usecases (lista vazia, paginação, paginação inválida, termo com acento, maiúscula e espaço duplo, termo malicioso, detalhe com vários sellers, fallback de `brand`/`category` para o oficial, texto vazio mantido, `null` quando os dois não têm, não encontrado).

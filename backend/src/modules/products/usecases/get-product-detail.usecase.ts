@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ProductRepository } from '@modules/products/repositories/product.repository';
 import { ProductsErrors } from '@modules/products/schemas/products.errors';
 import type { ProductWithSellers } from '@modules/products/schemas/product.types';
+import { fillFromOfficialProduct } from '@shared/catalog/fill-from-official-product';
 import type { AppError } from '@shared/errors/app-error';
 import { Result } from '@shared/result/result';
 
@@ -24,21 +25,15 @@ export class GetProductDetailUseCase {
     return Result.success(product);
   }
 
-  /**
-   * D-014: o banco guarda `null` quando o seller não informou `brand`/`category`;
-   * na resposta, esses campos usam o dado do produto oficial. Só `null` cai para
-   * o oficial; `externalId` não tem equivalente e continua como está.
-   */
+  /** D-014: `brand`/`category` que o seller não informou vêm do produto oficial (regra compartilhada, D-061). */
   private fillMissingSellerData(
     product: ProductWithSellers,
   ): Result<ProductWithSellers, AppError> {
     return Result.success({
       ...product,
-      sellers: product.sellers.map((seller) => ({
-        ...seller,
-        brand: seller.brand ?? product.brand,
-        category: seller.category ?? product.category,
-      })),
+      sellers: product.sellers.map((seller) =>
+        fillFromOfficialProduct(seller, product),
+      ),
     });
   }
 }
