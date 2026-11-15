@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { CatalogItemField } from '@modules/catalog-import/consts/catalog-import.consts';
 import { CatalogImportErrors } from '@modules/catalog-import/schemas/catalog-import.errors';
 import {
-  CatalogItemField,
   InvalidCatalogItem,
   ParsedCatalogFile,
   ValidCatalogItem,

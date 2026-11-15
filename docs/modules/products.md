@@ -36,9 +36,10 @@ Listagem: `validatePagination` (função compartilhada, D-060) -> `normalizeQuer
 - `ProductRepository`: único acesso ao `Product`. Métodos: `findByNormalizedKey(key, tx?)`, `create(data, tx?)`, `search({ q, page, pageSize })`, `findByIdWithSellers(id)`. Os dois primeiros serão usados pela importação.
 - `ProductNormalizerService`: registrado no módulo (D-070), vem do `catalog-import`.
 - Schemas: `product.types.ts`, `products.errors.ts` (`PRODUCT_NOT_FOUND` registrado com `registerErrorStatuses`) e DTOs de request e response com Swagger. `ListProductsRequestDto` herda `page`/`pageSize` do `PaginationRequestDto` compartilhado e só acrescenta `q`.
+- Consts: `consts/products.swagger-examples.ts` com os exemplos de 400 e 404 do Swagger, tipados com `ErrorResponseBody` (D-038).
 
 ## Decisões relacionadas
-D-004, D-005, D-013, D-014, D-015, D-021, D-024, D-032, D-060, D-061, D-070 em `docs/decisions.md`.
+D-004, D-005, D-013, D-014, D-015, D-021, D-024, D-032, D-038, D-060, D-061, D-070 em `docs/decisions.md`.
 
 ## Testes
 - Unitários dos usecases (lista vazia, paginação, paginação inválida, termo com acento, maiúscula e espaço duplo, termo malicioso, detalhe com vários sellers, fallback de `brand`/`category` para o oficial, texto vazio mantido, `null` quando os dois não têm, não encontrado).

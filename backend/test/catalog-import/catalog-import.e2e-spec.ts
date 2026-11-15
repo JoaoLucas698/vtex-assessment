@@ -5,10 +5,10 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '@/app.module';
 import { CatalogImportErrorCode } from '@modules/catalog-import/schemas/catalog-import.errors';
+import { MAX_CATALOG_FILE_SIZE_BYTES } from '@modules/catalog-import/consts/catalog-import.consts';
 import {
   ImportItemOutcome,
   MatchedBy,
-  MAX_CATALOG_FILE_SIZE_BYTES,
 } from '@modules/catalog-import/schemas/catalog-import.types';
 import { configureApp } from '@shared/config/configure-app';
 import { CommonErrorCode } from '@shared/errors/error-codes';
