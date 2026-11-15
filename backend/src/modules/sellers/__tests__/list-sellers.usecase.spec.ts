@@ -57,6 +57,7 @@ describe('ListSellersUseCase', () => {
     { page: 0, pageSize: 20 },
     { page: 1, pageSize: 0 },
     { page: 1.5, pageSize: 20 },
+    { page: 1, pageSize: 101 },
   ])('retorna erro de validação para paginação inválida %j', async (input) => {
     const result = await sut.execute(input);
 

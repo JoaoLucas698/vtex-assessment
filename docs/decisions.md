@@ -85,8 +85,9 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 ## D-014 — Significado de `null` nos campos do seller
 **Contexto:** `SellerProduct.brand`/`category` podem ser nulos.
 **Opções consideradas:** A) `null` = "igual ao oficial"; B) `null` = "não veio no arquivo".
-**Decisão:** B. O vínculo guarda sempre o que o seller enviou, mesmo igual ao oficial.
-**Consequências:** sem ambiguidade na leitura; um pouco de redundância.
+**Decisão:** B **no banco**. O vínculo guarda sempre o que o seller enviou, mesmo igual ao oficial, e `null` quando ele não mandou o campo. **Na leitura**, quando o seller não informou `brand` ou `category`, a API usa o dado do produto oficial do catálogo (campo a campo). Vale para as duas leituras: `GET /api/sellers/:id/products` (`SellerProductViewService`) e `GET /api/products/:id` (passo `fillMissingSellerData` do `GetProductDetailUseCase`), as duas pela função compartilhada `fillFromOfficialProduct` (D-061). Só `null` usa o oficial: texto enviado pelo seller, mesmo vazio, é devolvido como veio. `externalId` não tem equivalente no produto e continua `null`.
+**Revisão:** a primeira versão desta decisão também devolvia `null` na API. O usuário apontou que, se o seller não enviou o dado, deve valer o do produto original do catálogo. O banco não mudou (segue `docs/context.md` §3: `null` = "não veio no arquivo"); só a resposta mudou.
+**Consequências:** a tela sempre mostra marca/categoria quando o oficial tem. A API não diz se o valor veio do seller ou do oficial; quem precisar dessa diferença lê o banco. `null` na resposta só aparece se seller e produto oficial não têm o dado. Sem migration.
 
 ## D-015 — Registrar o critério de match (`matchedBy`)
 **Contexto:** é preciso auditar por que cada vínculo existe.
@@ -254,6 +255,24 @@ Registro das decisões do projeto, no formato definido no `CLAUDE.md` §7. As en
 **Opções consideradas:** A) manter `NoAction` explícito — ruído sem comportamento diferente no SQLite com `foreign_keys` ligado; B) padrão do Prisma para relações obrigatórias: `ON DELETE RESTRICT ON UPDATE CASCADE`.
 **Decisão:** B. Nenhum fluxo da aplicação apaga produto ou seller; `RESTRICT` impede apagar um que ainda tem vínculos.
 **Consequências:** a FK recriada tem `RESTRICT/CASCADE` em vez de `NO ACTION`. Não muda nenhum caso de uso.
+
+## D-057 — Trava na migration contra banco vazio
+**Contexto:** se o arquivo de `DATABASE_URL` já existe vazio (por exemplo, a API subiu antes da cópia e o driver libsql criou o arquivo), o banco não tem as tabelas originais. Com o `migrate resolve --applied 0_init` (D-055), a baseline fica marcada como aplicada sem criar `Product` e `SellerProduct`, e o `migrate deploy` falhava com `no such table: sqlite_sequence` (P3018), uma mensagem que não aponta a causa.
+**Opções consideradas:** A) só documentar — o erro continua confuso; B) tornar a migration tolerante a banco vazio — criaria tabelas que deveriam vir do banco fornecido e esconderia o erro; C) uma trava no começo da migration que falha com uma mensagem clara.
+**Decisão:** C. SQLite não tem `RAISE` fora de trigger, então a trava é uma tabela temporária com `CHECK` nomeado: conta `Product` e `SellerProduct` em `sqlite_master` e, se faltar alguma, falha com `CHECK constraint failed: banco_sem_as_tabelas_originais_copie_database_catalog_db_para_o_DATABASE_URL`. A tabela temporária é apagada logo depois. Em `docs/database.md`, os passos de recuperação.
+**Consequências:** nenhum efeito num banco correto (as duas tabelas existem). Banco vazio para antes de alterar qualquer coisa. Como o SQLite do Prisma não roda a migration numa transação única, o banco quebrado precisa ser apagado e copiado de novo. Em produção, a pré-condição seria checada pelo pipeline de deploy antes de rodar migrations.
+
+## D-060 — Paginação compartilhada em `shared/pagination`
+**Contexto:** na revisão do PR #4 o usuário apontou que a validação de paginação se repetia nos dois usecases de `sellers` e que os tipos de paginação (`PaginationParams`, `PaginatedResult`) ficavam em `seller.types.ts`, embora outros módulos (ex.: `products`) também listem com paginação.
+**Opções consideradas:** A) manter por módulo — repete código e limites; B) `PaginationService` injetável — o `CLAUDE.md` §3 manda services ficarem no módulo, e uma função pura sem estado não precisa de DI; C) pasta `shared/pagination` com tipos, DTO de query e uma função pura de validação.
+**Decisão:** C. `pagination.types.ts` (limites `DEFAULT_PAGE`, `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE`, `PaginationParams`, `PaginatedResult<T>` dos repositories, `PaginatedOutput<T>` dos usecases), `pagination.request.dto.ts` (`PaginationRequestDto` com Swagger e `class-validator`) e `validate-pagination.ts` (`validatePagination(input)` devolve `Result` com `VALIDATION_ERROR`). O método privado `validatePagination` de cada usecase continua existindo e só chama a função compartilhada. A validação passou a conferir também `pageSize <= MAX_PAGE_SIZE`, igual ao DTO. Os response DTOs continuam por módulo, porque o Swagger precisa de uma classe concreta por tipo de item.
+**Consequências:** um módulo novo com listagem só importa de `@shared/pagination/...`. Mudar o limite é mudar uma constante. O módulo `products` também usa: `ListProductsRequestDto` herda do `PaginationRequestDto` (só acrescenta `q`), os tipos de busca e de saída usam `PaginationParams`/`PaginatedResult`/`PaginatedOutput`, e o `ListProductsUseCase` ganhou o passo `validatePagination`.
+
+## D-061 — Fallback para o produto oficial como função compartilhada
+**Contexto:** a regra da D-014 (na leitura, `brand`/`category` nulos do seller usam o valor do produto oficial) passou a existir em dois lugares: `SellerProductViewService` (sellers) e `GetProductDetailUseCase` (products). O usuário pediu para levar a regra ao `shared`.
+**Opções consideradas:** A) manter duplicada — duas linhas, mas pode divergir; B) `products` usar o service de `sellers` pelo `SellersModule` — cria dependência entre os módulos (D-024 evitou isso); C) função pura em `shared/catalog/fill-from-official-product.ts`, como a `validatePagination` (D-060).
+**Decisão:** C. `fillFromOfficialProduct(sellerData, official)` recebe qualquer objeto com `brand`/`category` e devolve uma cópia com o fallback aplicado, sem alterar os outros campos. O `SellerProductViewService` e o passo `fillMissingSellerData` do `GetProductDetailUseCase` continuam existindo e só chamam a função.
+**Consequências:** a regra tem um único lugar e um teste unitário próprio. Um campo novo com fallback entra só na função e no tipo `FallbackFields`.
 
 ## D-070 — `ProductsModule` registra o `ProductNormalizerService`
 **Contexto:** a busca por nome ou marca ignora maiúsculas, acentos e espaços repetidos. O SQLite no Prisma não tem `mode: 'insensitive'`, então o termo é normalizado com a mesma regra da `normalizedKey` e comparado com `contains` nessa coluna. Isso exige o `ProductNormalizerService`, que vive no módulo `catalog-import`.
