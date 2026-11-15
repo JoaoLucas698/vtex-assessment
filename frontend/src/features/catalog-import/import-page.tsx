@@ -9,6 +9,7 @@ import { errorText } from '@components/error-text';
 import { PageHeader } from '@components/page-header';
 import { StatusMessage } from '@components/status-message';
 import tableStyles from '@components/table.module.css';
+import { FileTemplate } from '@features/catalog-import/file-template';
 import styles from '@features/catalog-import/import-page.module.css';
 import { routeHref } from '@/hooks/use-hash-route';
 
@@ -200,6 +201,7 @@ export function ImportPage() {
         title="Importar catálogo"
         subtitle="Envie o arquivo JSON de carga dos sellers (até 5 MB). Reenviar o mesmo arquivo não duplica nada."
       />
+      <FileTemplate />
       <form onSubmit={onSubmit} className={styles.upload}>
         <label
           className={`${styles.dropzone} ${dragging ? styles.dragging : ''}`}
