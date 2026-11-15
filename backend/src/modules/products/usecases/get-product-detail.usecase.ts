@@ -10,7 +10,10 @@ export class GetProductDetailUseCase {
   constructor(private readonly productRepository: ProductRepository) {}
 
   async execute(id: number): Promise<Result<ProductWithSellers, AppError>> {
-    return this.findProduct(id);
+    const product = await this.findProduct(id);
+    if (product.isFailure) return product;
+
+    return this.fillMissingSellerData(product.value);
   }
 
   private async findProduct(
@@ -19,5 +22,23 @@ export class GetProductDetailUseCase {
     const product = await this.productRepository.findByIdWithSellers(id);
     if (!product) return Result.error(ProductsErrors.productNotFound(id));
     return Result.success(product);
+  }
+
+  /**
+   * D-014: o banco guarda `null` quando o seller não informou `brand`/`category`;
+   * na resposta, esses campos usam o dado do produto oficial. Só `null` cai para
+   * o oficial; `externalId` não tem equivalente e continua como está.
+   */
+  private fillMissingSellerData(
+    product: ProductWithSellers,
+  ): Result<ProductWithSellers, AppError> {
+    return Result.success({
+      ...product,
+      sellers: product.sellers.map((seller) => ({
+        ...seller,
+        brand: seller.brand ?? product.brand,
+        category: seller.category ?? product.category,
+      })),
+    });
   }
 }
