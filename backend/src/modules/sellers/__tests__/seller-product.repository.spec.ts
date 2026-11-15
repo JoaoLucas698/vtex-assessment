@@ -74,6 +74,11 @@ describe('SellerProductRepository', () => {
         where: { sellerId: 1 },
         skip: 20,
         take: 10,
+        include: {
+          product: {
+            select: { id: true, name: true, brand: true, category: true },
+          },
+        },
       }),
     );
     expect(result).toEqual({ items: [], total: 0 });

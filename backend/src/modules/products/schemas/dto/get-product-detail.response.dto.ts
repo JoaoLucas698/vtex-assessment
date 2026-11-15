@@ -23,7 +23,8 @@ export class ProductSellerDto {
   name!: string;
 
   @ApiProperty({
-    description: 'Marca como o seller enviou, ou null.',
+    description:
+      'Marca como o seller enviou. Se o seller não informou, vem a marca do produto oficial; null só se os dois forem nulos.',
     example: "Levi's",
     nullable: true,
     type: String,
@@ -31,7 +32,8 @@ export class ProductSellerDto {
   brand!: string | null;
 
   @ApiProperty({
-    description: 'Categoria como o seller enviou, ou null.',
+    description:
+      'Categoria como o seller enviou. Se o seller não informou, vem a categoria do produto oficial; null só se as duas forem nulas.',
     example: 'Calçados',
     nullable: true,
     type: String,

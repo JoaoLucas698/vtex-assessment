@@ -19,6 +19,20 @@
   O arquivo e propositalmente so ASCII: os caracteres acentuados sao escritos com char(N).
 */
 
+-- Trava de seguranca: esta migration so roda sobre uma copia de database/catalog.db.
+-- Se o arquivo de DATABASE_URL ja existir vazio (ex.: a API subiu antes da copia e o
+-- driver criou o arquivo), o `migrate resolve --applied 0_init` marca a baseline sem
+-- criar as tabelas originais e o erro seria um confuso "no such table: sqlite_sequence".
+-- Aqui ele vira uma mensagem clara.
+CREATE TEMP TABLE "_MigrationGuard" (
+    "ok" INTEGER NOT NULL,
+    CONSTRAINT "banco_sem_as_tabelas_originais_copie_database_catalog_db_para_o_DATABASE_URL" CHECK ("ok" = 2)
+);
+INSERT INTO "_MigrationGuard" ("ok")
+SELECT count(*) FROM "sqlite_master"
+WHERE "type" = 'table' AND "name" IN ('Product', 'SellerProduct');
+DROP TABLE "_MigrationGuard";
+
 -- Guarda o contador de ids dos autoincrementos: recriar a tabela o reduziria ao maior id
 -- restante, e ids ja usados poderiam ser reaproveitados.
 CREATE TABLE "_MigrationSequence" (

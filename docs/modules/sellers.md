@@ -20,24 +20,29 @@ flowchart LR
   P --> SPR[SellerProductRepository]
 ```
 
-`ListSellerProductsUseCase`: `validatePagination` -> `findSeller` (erro `SELLER_NOT_FOUND` se `null`) -> `listProducts`.
+`ListSellerProductsUseCase`: `validatePagination` -> `findSeller` (erro `SELLER_NOT_FOUND` se `null`) -> `listProducts` (cada vínculo passa pelo `SellerProductViewService`, que aplica o fallback para o produto oficial).
 
 ## Regras de negócio
-- `null` em `brand`, `category` e `externalId` significa que o seller não informou o dado (D-014) e é devolvido como `null`, nunca como texto vazio.
-- Os dados do vínculo são os do seller; o produto oficial vem só com `id` e `name`.
-- Paginação: `page >= 1`, `1 <= pageSize <= 100`; ordenação estável (sellers por nome e id; vínculos por id).
+- No banco, `null` em `brand`, `category` e `externalId` significa que o seller não informou o dado (D-014).
+- Na resposta, `brand` e `category` que o seller não informou vêm do produto oficial do catálogo, campo a campo (D-014). Só `null` cai para o oficial; texto do seller (mesmo vazio) vem como foi enviado. `null` só aparece se o oficial também não tem o dado. `externalId` não tem fallback.
+- Os outros dados do vínculo são os do seller; o produto oficial vem com `id` e `name`.
+- Paginação: `page >= 1`, `1 <= pageSize <= 100`, com tipos, DTO de query e validação de `shared/pagination` (D-060); ordenação estável (sellers por nome e id; vínculos por id).
 - Textos (inclusive com aspas e SQL) são gravados e lidos exatamente como chegam: só há queries parametrizadas pelo Prisma.
 
 ## Componentes
 - `ListSellersUseCase`, `ListSellerProductsUseCase`: um por endpoint.
+- `SellerProductViewService`: serviço puro que monta o item da resposta; o fallback de `brand`/`category` para o produto oficial (D-014) vem de `fillFromOfficialProduct`, em `shared/catalog` (D-061).
 - `SellerRepository`: `findByName(sellerName, tx?)`, `create(sellerName, tx?)`, `findById(id, tx?)`, `list(params, tx?)` (com `productCount`).
-- `SellerProductRepository`: `findBySellerAndExternalId(sellerId, externalId, tx?)`, `findBySellerAndProduct(sellerId, productId, tx?)`, `create(data, tx?)`, `updateSellerData(id, {name, brand, category}, tx?)`, `listBySeller(sellerId, params, tx?)`. Todos aceitam `tx` opcional e retornam o dado ou `null`.
-- Schemas: `seller.types.ts`, `sellers.errors.ts` (registra `SELLER_NOT_FOUND` -> 404, D-032), DTOs de paginação e de resposta com Swagger.
+- `SellerProductRepository`: `findBySellerAndExternalId(sellerId, externalId, tx?)`, `findBySellerAndProduct(sellerId, productId, tx?)`, `create(data, tx?)`, `updateSellerData(id, {name, brand, category}, tx?)`, `listBySeller(sellerId, params, tx?)` (traz `id`, `name`, `brand` e `category` do produto oficial). Todos aceitam `tx` opcional e retornam o dado ou `null`.
+- Schemas: `seller.types.ts`, `sellers.errors.ts` (registra `SELLER_NOT_FOUND` -> 404, D-032), DTOs de resposta com Swagger. A query de paginação usa o `PaginationRequestDto` compartilhado (D-060).
+- Consts: `consts/sellers.swagger-examples.ts` com os exemplos de 400 e 404 do Swagger, tipados com `ErrorResponseBody` (D-038).
 
 ## Decisões relacionadas
-D-002, D-007, D-008, D-012, D-014, D-024, D-032 em `docs/decisions.md`. Nenhuma decisão nova neste módulo.
+D-002, D-007, D-008, D-012, D-014, D-024, D-032, D-038, D-060, D-061 em `docs/decisions.md`.
 
 ## Testes
-- Unitários dos dois usecases (sucesso, seller inexistente, paginação inválida, `null` preservado) com `mockDeep`.
+- Unitários dos dois usecases (sucesso, seller inexistente, paginação inválida) com `mockDeep`.
+- Unitário do `SellerProductViewService`: dado do seller, fallback para o oficial (os dois campos e um só), texto vazio mantido, `null` quando os dois não têm, `externalId` sem fallback.
 - Unitários dos repositories com `mockDeep<PrismaService>()`, conferindo o uso do `tx`.
-- e2e (`test/sellers/sellers.e2e-spec.ts`) em banco temporário migrado: listagem, paginação, 400, 404 e seller com nome malicioso (`x'; SELECT 1; --`) lido igual ao gravado.
+- Unitário de `validatePagination` (em `shared/pagination/__tests__`): limites aceitos e rejeitados, inclusive `pageSize > 100`.
+- e2e (`test/sellers.e2e-spec.ts`) em banco temporário migrado: listagem, paginação, 400, 404 e seller com nome malicioso (`x'; SELECT 1; --`) lido igual ao gravado.

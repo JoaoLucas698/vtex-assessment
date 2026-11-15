@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma, SellerProduct } from '@prisma/client';
 import type {
-  CreateSellerProductData,
   PaginatedResult,
   PaginationParams,
+} from '@shared/pagination/pagination.types';
+import type {
+  CreateSellerProductData,
   SellerDataUpdate,
   SellerProductWithProduct,
 } from '@modules/sellers/schemas/seller.types';
@@ -63,7 +65,11 @@ export class SellerProductRepository {
         orderBy: { id: 'asc' },
         skip: (params.page - 1) * params.pageSize,
         take: params.pageSize,
-        include: { product: { select: { id: true, name: true } } },
+        include: {
+          product: {
+            select: { id: true, name: true, brand: true, category: true },
+          },
+        },
       }),
       client.sellerProduct.count({ where: { sellerId } }),
     ]);
