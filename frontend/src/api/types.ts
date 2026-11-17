@@ -31,7 +31,22 @@ export interface ImportItem {
   reason: string | null;
 }
 
+export type NormalizationTypeCode = 'NAME_BRAND' | 'NAME_CATEGORY' | 'NAME_BRAND_CATEGORY';
+
+export interface NormalizationType {
+  id: number;
+  code: NormalizationTypeCode;
+  description: string;
+  includesBrand: boolean;
+  includesCategory: boolean;
+}
+
+export interface ListNormalizationTypesResponse {
+  items: NormalizationType[];
+}
+
 export interface ImportCatalogResponse {
+  normalizationType: NormalizationTypeCode;
   totals: ImportTotals;
   items: ImportItem[];
 }

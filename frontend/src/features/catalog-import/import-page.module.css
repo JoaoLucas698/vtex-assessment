@@ -72,6 +72,33 @@
   padding: 0.65rem 1.4rem;
 }
 
+.rule {
+  margin-bottom: 1rem;
+}
+
+.ruleLabel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ruleHelp {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ruleUsed {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.ruleUsed strong { color: var(--text); font-family: var(--mono); }
+
 .section {
   display: flex;
   flex-direction: column;

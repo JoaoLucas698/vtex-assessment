@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChangeEvent, DragEvent, FormEvent } from 'react';
 import { catalogApi } from '@api/catalog-api';
 import { ImportOutcome } from '@api/types';
-import type { ImportCatalogResponse, ImportItem } from '@api/types';
+import type { ImportCatalogResponse, ImportItem, NormalizationType, NormalizationTypeCode } from '@api/types';
 import { Badge } from '@components/badge';
 import type { BadgeTone } from '@components/badge';
 import { errorText } from '@components/error-text';
@@ -110,6 +110,9 @@ function Report({ report }: { report: ImportCatalogResponse }) {
   return (
     <section aria-label="Relatório da importação" className={styles.section}>
       <h2>Relatório</h2>
+      <p className={styles.ruleUsed}>
+        Regra de normalização usada: <strong>{report.normalizationType}</strong>
+      </p>
       <ul className={styles.cards}>
         {totalCards(report).map((card) => (
           <li key={card.label} className={`${styles.card} ${styles[card.tone]}`} data-testid={`total-${card.label}`}>
@@ -164,10 +167,67 @@ function Report({ report }: { report: ImportCatalogResponse }) {
   );
 }
 
+const DEFAULT_NORMALIZATION: NormalizationTypeCode = 'NAME_BRAND';
+
+type TypesState =
+  | { status: 'loading' }
+  | { status: 'error'; error: unknown }
+  | { status: 'ready'; items: NormalizationType[] };
+
+function defaultCode(items: NormalizationType[]): NormalizationTypeCode | null {
+  const preferred = items.find((i) => i.code === DEFAULT_NORMALIZATION);
+  return (preferred ?? items[0])?.code ?? null;
+}
+
+interface NormalizationFieldProps {
+  types: TypesState;
+  value: NormalizationTypeCode | null;
+  onChange: (code: NormalizationTypeCode) => void;
+}
+
+function NormalizationField({ types, value, onChange }: NormalizationFieldProps) {
+  if (types.status === 'loading') return <StatusMessage kind="loading">Carregando regras de normalização...</StatusMessage>;
+  if (types.status === 'error') return <StatusMessage kind="error">{errorText(types.error)}</StatusMessage>;
+  if (types.items.length === 0) return <StatusMessage kind="empty">Nenhuma regra de normalização disponível.</StatusMessage>;
+
+  return (
+    <div className={styles.rule}>
+      <label className={styles.ruleLabel}>
+        Regra de normalização
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value as NormalizationTypeCode)}>
+          {types.items.map((type) => (
+            <option key={type.code} value={type.code}>
+              {type.description}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className={styles.ruleHelp}>
+        A regra define apenas a chave dos produtos novos. Produtos que já existem mantêm a própria regra.
+      </p>
+    </div>
+  );
+}
+
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<UploadState>({ status: 'idle' });
+  const [types, setTypes] = useState<TypesState>({ status: 'loading' });
+  const [chosen, setChosen] = useState<NormalizationTypeCode | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    catalogApi.listNormalizationTypes().then(
+      (response) => active && setTypes({ status: 'ready', items: response.items }),
+      (error: unknown) => active && setTypes({ status: 'error', error }),
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const normalizationType = chosen ?? (types.status === 'ready' ? defaultCode(types.items) : null);
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setFile(event.target.files?.[0] ?? null);
@@ -189,7 +249,7 @@ export function ImportPage() {
     event.preventDefault();
     if (!file) return;
     setState({ status: 'loading' });
-    catalogApi.importCatalog(file).then(
+    catalogApi.importCatalog(file, normalizationType ?? undefined).then(
       (report) => setState({ status: 'success', report }),
       (error: unknown) => setState({ status: 'error', error }),
     );
@@ -202,6 +262,7 @@ export function ImportPage() {
         subtitle="Envie o arquivo JSON de carga dos sellers (até 5 MB). Reenviar o mesmo arquivo não duplica nada."
       />
       <FileTemplate />
+      <NormalizationField types={types} value={normalizationType} onChange={setChosen} />
       <form onSubmit={onSubmit} className={styles.upload}>
         <label
           className={`${styles.dropzone} ${dragging ? styles.dragging : ''}`}
