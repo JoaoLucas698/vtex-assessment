@@ -11,8 +11,8 @@ export const NORMALIZATION_TYPE_IDS = {
 } as const satisfies Record<NormalizationTypeCode, number>;
 
 /**
- * Tipo dos produtos legados e, até a importação aceitar o tipo como parâmetro, de toda
- * importação (D-111): `marca|nome`, a mesma regra que gerou as chaves existentes.
+ * Tipo dos produtos legados (D-111): `marca|nome`, a mesma regra que gerou as chaves
+ * existentes. A importação escolhe o tipo por parâmetro (D-113).
  */
 export const LEGACY_NORMALIZATION_TYPE_ID =
   NORMALIZATION_TYPE_IDS[NormalizationTypeCode.NAME_BRAND];

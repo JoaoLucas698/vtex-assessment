@@ -3,7 +3,7 @@
 ## Responsabilidade
 Expõe os **tipos de normalização** da chave do produto (`Product.normalizedKey`): quais campos, além do nome, entram na chave usada para achar o mesmo produto entre sellers. Os tipos ficam na tabela `NormalizationType` (D-110), cadastrados pela migration `add_normalization_types`, e o módulo é **somente leitura**: não cria, altera nem remove tipos pela API.
 
-O módulo também exporta o `NormalizationTypeRepository`, para a importação (PR 2) validar o tipo escolhido pelo código. Ele não monta a chave: a montagem continua no `ProductNormalizerService` do `catalog-import`.
+O módulo também exporta o `NormalizationTypeRepository`, que o `catalog-import` usa para validar o tipo escolhido na importação (`findByCode`) e carregar a ordem de busca do matching (`findAll`, D-112, D-113). Ele não monta a chave: a montagem continua no `ProductNormalizerService` do `catalog-import`.
 
 ## Endpoints
 | Método | Rota | Descrição | Request | Response |
@@ -30,12 +30,12 @@ flowchart LR
   | 3 | `NAME_BRAND_CATEGORY` | Nome + Marca + Categoria | sim | sim |
 
 - O **nome sempre** faz parte da chave. As flags `includesBrand` e `includesCategory` dizem o que entra junto.
-- Formato da chave (implementado no PR 2): as partes incluídas, nesta ordem, `marca | categoria | nome`, cada uma normalizada pelo `ProductNormalizerService` e unidas por `|`. Exemplos para `Brand = "Samsung"`, `Category = "Electronics"`, `Name = "Galaxy S23"`:
+- Formato da chave (`ProductNormalizerService.buildKey(campos, regra)`): as partes incluídas, nesta ordem, `marca | categoria | nome`, cada uma normalizada pelo `ProductNormalizerService` e unidas por `|`. Exemplos para `Brand = "Samsung"`, `Category = "Electronics"`, `Name = "Galaxy S23"`:
   - `NAME_BRAND`: `samsung|galaxy s23` (exatamente a chave de hoje);
   - `NAME_CATEGORY`: `electronics|galaxy s23`;
   - `NAME_BRAND_CATEGORY`: `samsung|electronics|galaxy s23`.
 - A chave é única **dentro do tipo**: unique composto `(NormalizationTypeId, NormalizedKey)` em `Product` (D-111). A mesma chave pode existir em tipos diferentes.
-- Todos os produtos que já existiam ficam com `NAME_BRAND` e mantêm a chave exata (D-111). Até o PR 2, a importação grava e busca sempre com `NAME_BRAND` (`LEGACY_NORMALIZATION_TYPE_ID`), sem mudar o matching.
+- Todos os produtos que já existiam ficam com `NAME_BRAND` e mantêm a chave exata (D-111). A importação escolhe o tipo dos produtos que cria pelo campo `normalizationType` (padrão `NAME_BRAND`, D-113) e procura o produto em todos os tipos, cada um pela própria regra, com prioridade para o tipo escolhido (D-112). Ver `docs/modules/catalog-import.md`.
 
 ## Componentes
 - `ListNormalizationTypesUseCase`: lista os tipos; único usecase do módulo.
@@ -44,7 +44,7 @@ flowchart LR
 - Consts: `normalization-types.consts.ts` (`NORMALIZATION_TYPE_IDS`, ids fixos por código, e `LEGACY_NORMALIZATION_TYPE_ID`) e `normalization-types.swagger-examples.ts` (exemplo do 200, `satisfies ListNormalizationTypesOutput`).
 
 ## Decisões relacionadas
-D-110, D-111 em `docs/decisions.md`. Também D-005 (regra da chave original), D-038 (exemplos do Swagger tipados) e D-055 (SQL manual nos testes de migration).
+D-110, D-111, D-112, D-113 em `docs/decisions.md`. Também D-005 (regra da chave original), D-038 (exemplos do Swagger tipados) e D-055 (SQL manual nos testes de migration).
 
 ## Testes
 - Unitário do usecase com `mockDeep<NormalizationTypeRepository>()`: lista na ordem do repository, lista vazia, nenhum campo extra exposto.

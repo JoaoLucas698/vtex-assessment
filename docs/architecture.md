@@ -43,11 +43,11 @@ flowchart LR
     PR --- SH
     CI --- SH
     NT[normalization-types] --- SH
-    CI -.->|LEGACY_NORMALIZATION_TYPE_ID<br/>constante, D-111| NT
+    CI -->|importa NormalizationTypesModule| NT
 ```
 
-- `catalog-import` importa `sellers` (para `SellerRepository` e `SellerProductRepository`) e `products` (para `ProductRepository`). Pelo `Module` de cada um, nunca pelo arquivo.
-- `normalization-types` exporta o `NormalizationTypeRepository` e não depende de outro módulo. Por enquanto `catalog-import` (e os testes) só usam a constante `LEGACY_NORMALIZATION_TYPE_ID` dos `consts/` dele; a importação com tipo como parâmetro passará a importar o `NormalizationTypesModule`.
+- `catalog-import` importa `sellers` (para `SellerRepository` e `SellerProductRepository`), `products` (para `ProductRepository`) e `normalization-types` (para `NormalizationTypeRepository`: valida o tipo da importação e carrega a ordem de busca, D-112, D-113). Pelo `Module` de cada um, nunca pelo arquivo.
+- `normalization-types` exporta o `NormalizationTypeRepository` e não depende de outro módulo. A constante `LEGACY_NORMALIZATION_TYPE_ID` dos `consts/` dele continua só nos testes (produtos legados são `NAME_BRAND`).
 - `products` lê os sellers de um produto pela própria relação (`findByIdWithSellers`, D-024), então não depende de `sellers`.
 - `ProductNormalizerService` é o service puro da regra de chave (D-025). `products` também o registra no próprio módulo para a busca (D-070).
 - `shared/` não conhece módulo nenhum: guarda o mapa `code → HTTP` (cada módulo registra os seus, D-032).
@@ -61,19 +61,21 @@ sequenceDiagram
     participant UC as ImportCatalogUseCase
     participant Parser as CatalogFileParserService
     participant TM as TransactionManager
-    participant Rep as Repositories (sellers, products)
+    participant Rep as Repositories (sellers, products, normalization-types)
     participant Match as ProductMatchingService
     participant Rel as ImportReportService
 
-    Cliente->>Ctrl: POST /api/catalog-import (multipart, campo file)
-    Ctrl->>UC: execute(arquivo)
+    Cliente->>Ctrl: POST /api/catalog-import (multipart, file + normalizationType opcional)
+    Ctrl->>UC: execute(arquivo, normalizationType)
+    UC->>Rep: findByCode(tipo pedido ou NAME_BRAND)
     UC->>Parser: parse(arquivo)
     Parser-->>UC: itens válidos e inválidos (com motivo)
     UC->>TM: run(tx => processa os itens válidos em ordem)
+    UC->>Rep: findAll dos tipos (ordem de busca: escolhido, depois os demais)
     loop cada item válido
         UC->>Rep: seller por nome (cache, findByName ou create)
         UC->>Rep: vínculo por sellerId + externalId
-        UC->>Rep: produto por normalizedKey
+        UC->>Rep: produto por (tipo, chave na regra do tipo), na ordem de busca
         UC->>Rep: vínculo do seller com o produto
         UC->>Match: decide(dados buscados)
         Match-->>UC: ALREADY_LINKED, LINK_EXISTING, CREATE_PRODUCT ou DUPLICATE_SAME_SELLER
@@ -90,7 +92,8 @@ Pontos do fluxo:
 
 - Item inválido (`Id`, `SellerName` ou `Name` vazios, tipo errado) não entra na transação: é só reportado com o motivo (D-011, D-082).
 - A deduplicação dentro do arquivo vem da ordem: o item 50 encontra o produto criado pelo item 3, porque os dois rodam na mesma transação (D-080).
-- Erro esperado de arquivo (JSON inválido, array vazio, arquivo ausente) responde 400 antes de abrir a transação (D-081).
+- Erro esperado de arquivo (JSON inválido, array vazio, arquivo ausente) ou tipo de normalização inválido (`INVALID_NORMALIZATION_TYPE`) responde 400 antes de abrir a transação (D-081, D-113).
+- Cada produto existente é comparado pela regra do próprio tipo; produto novo leva o tipo escolhido (D-112).
 - Detalhes das regras de matching estão em `docs/modules/catalog-import.md` e em `docs/decisions.md` (D-005, D-012, D-040).
 
 ## Padrão Result

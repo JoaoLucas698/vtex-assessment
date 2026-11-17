@@ -120,11 +120,21 @@ Resultado esperado com o banco fornecido (975 produtos, nenhum vínculo):
 
 Com catálogo vazio, o mesmo arquivo cria 201 produtos e 257 vínculos (cenário do e2e). Reimportar o arquivo não muda nenhuma contagem: o segundo relatório traz 258 `alreadyLinked` e 11 `duplicateSameSeller`.
 
+### Escolher o tipo de normalização
+
+O campo opcional `normalizationType` escolhe a regra da chave dos produtos criados nesta importação: `NAME_BRAND` (nome + marca, o padrão quando o campo não vem), `NAME_CATEGORY` (nome + categoria) ou `NAME_BRAND_CATEGORY` (nome + marca + categoria). A lista vem de `GET /api/normalization-types`.
+
+```bash
+curl -F "file=@database/fixtures/carga.json" -F normalizationType=NAME_CATEGORY http://localhost:3000/api/catalog-import
+```
+
+O relatório traz `"normalizationType": "NAME_CATEGORY"`. Cada produto existente continua sendo comparado pela própria regra: um item que bate com um produto `NAME_BRAND` é ligado a ele mesmo numa importação `NAME_CATEGORY`; quando há candidatos de mais de um tipo, vence o do tipo escolhido (D-112). Código desconhecido devolve `400 INVALID_NORMALIZATION_TYPE` e nada é gravado (D-113).
+
 ## Endpoints principais
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `POST` | `/api/catalog-import` | Importa o arquivo JSON (`multipart/form-data`, campo `file`, até 5 MB) |
+| `POST` | `/api/catalog-import` | Importa o arquivo JSON (`multipart/form-data`, campo `file`, até 5 MB; campo opcional `normalizationType`, padrão `NAME_BRAND`) |
 | `GET` | `/api/products` | Lista produtos com busca (`q`) e paginação |
 | `GET` | `/api/products/:id` | Detalhe do produto com os sellers que o oferecem |
 | `GET` | `/api/sellers` | Lista sellers com a quantidade de produtos |
