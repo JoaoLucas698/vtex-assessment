@@ -97,7 +97,7 @@ flowchart TD
     S --> T[[transactionManager.run tx]]
     T --> L[para cada item válido, em ordem]
     L --> SE[seller pelo nome<br/>cache ou findByName ou create]
-    SE --> M[lookup: findBySellerAndExternalId<br/>senão buildKey + findByNormalizedKey<br/>e findBySellerAndProduct]
+    SE --> M[lookup: findBySellerAndExternalId<br/>senão buildKey + findByTypeAndKey<br/>e findBySellerAndProduct]
     M --> D[ProductMatchingService.decide]
     D --> A{decisão}
     A -- ALREADY_LINKED --> A1[updateSellerData]
@@ -115,7 +115,7 @@ Passo a passo do `execute()` (só encadeia métodos privados, cada um devolvendo
 2. `parseFile`: chama o parser. JSON inválido ou não-array → `INVALID_FILE`; array vazio → `EMPTY_FILE`. Cada item vira válido ou inválido (com motivo).
 3. `transactionManager.run((tx) => processValidItems(...))`: processa os válidos **em ordem e um a um**, na mesma transação (D-080). Para cada item, `processItem` encadeia:
    - `resolveSeller`: cache por nome (D-084), senão `findByName`, senão `create` (D-008);
-   - `lookupMatchInput`: vínculo por `(sellerId, externalId)`; se não houver, `buildKey` + `findByNormalizedKey` e, se houver produto, `findBySellerAndProduct` (D-040);
+   - `lookupMatchInput`: vínculo por `(sellerId, externalId)`; se não houver, `buildKey` + `findByTypeAndKey` com o tipo `NAME_BRAND` (`LEGACY_NORMALIZATION_TYPE_ID`, D-111) e, se houver produto, `findBySellerAndProduct` (D-040). O produto criado também recebe `NAME_BRAND`; o tipo como parâmetro da importação fica para o PR 2;
    - `decide`: `ProductMatchingService.decide`;
    - `applyDecision`: grava conforme a decisão (`updateExistingLink`, `linkToExistingProduct`, `createProductAndLink`, `reportDuplicate`).
 4. `buildReport`: junta inválidos e processados na ordem do arquivo e calcula os totais.
@@ -219,6 +219,7 @@ A mesma regra é replicada em SQL no backfill da migration (D-019). Por isso ela
 
 - [D-038](../decisions.md#d-038--pasta-consts-por-módulo-para-constantes-e-exemplos-do-swagger) — constantes e exemplos do Swagger em `consts/`.
 - [D-005](../decisions.md#d-005--critério-de-mesmo-produto-normalizedkey--marca--nome-normalizados) — critério de "mesmo produto".
+- [D-110](../decisions.md#d-110--tipos-de-normalização-em-tabela-com-flags-includesbrandincludescategory) e [D-111](../decisions.md#d-111--unique-composto-tipo-chave-e-chaves-legadas-intactas-como-name_brand) — tipos de normalização; a importação usa `NAME_BRAND` até o PR 2.
 - [D-007](../decisions.md#d-007--reimportação-idempotente) — reimportação idempotente.
 - [D-008](../decisions.md#d-008--seller-criado-automaticamente-pelo-sellername) — seller criado pelo nome.
 - [D-009](../decisions.md#d-009--id-é-texto-livre-sem-validação-de-formato) — `Id` texto livre.

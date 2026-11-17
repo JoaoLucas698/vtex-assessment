@@ -4,7 +4,7 @@
 
 O backend é uma API NestJS organizada em módulos (`backend/src/modules/`), com camadas fixas dentro de cada módulo: **Controller → UseCase → Service ou Repository**. O acesso ao banco fica só nos repositories (e no `TransactionManager`), que usam o `PrismaService` sobre um SQLite. Os erros esperados não são lançados: voltam como um `Result`, que o controller converte em resposta HTTP.
 
-Os módulos são `catalog-import` (importação do arquivo de carga), `products` (catálogo e detalhe com sellers) e `sellers` (sellers e seus produtos). O `shared/` tem o que todos usam: `Result`, mapa de erros para HTTP e corpo de erro (`ErrorResponseBody`), `TransactionManager` e `PrismaService`, paginação (`shared/pagination`, D-060) e o fallback dos dados do seller para o produto oficial (`shared/catalog`, D-061).
+Os módulos são `catalog-import` (importação do arquivo de carga), `products` (catálogo e detalhe com sellers), `sellers` (sellers e seus produtos) e `normalization-types` (tipos de normalização da chave do produto, somente leitura, D-110). O `shared/` tem o que todos usam: `Result`, mapa de erros para HTTP e corpo de erro (`ErrorResponseBody`), `TransactionManager` e `PrismaService`, paginação (`shared/pagination`, D-060) e o fallback dos dados do seller para o produto oficial (`shared/catalog`, D-061).
 
 O frontend (React + Vite) só chama a API a partir de `src/api/`. Regras e decisões estão em `docs/context.md` e `docs/decisions.md`.
 
@@ -42,9 +42,12 @@ flowchart LR
     SE --- SH[shared]
     PR --- SH
     CI --- SH
+    NT[normalization-types] --- SH
+    CI -.->|LEGACY_NORMALIZATION_TYPE_ID<br/>constante, D-111| NT
 ```
 
 - `catalog-import` importa `sellers` (para `SellerRepository` e `SellerProductRepository`) e `products` (para `ProductRepository`). Pelo `Module` de cada um, nunca pelo arquivo.
+- `normalization-types` exporta o `NormalizationTypeRepository` e não depende de outro módulo. Por enquanto `catalog-import` (e os testes) só usam a constante `LEGACY_NORMALIZATION_TYPE_ID` dos `consts/` dele; a importação com tipo como parâmetro passará a importar o `NormalizationTypesModule`.
 - `products` lê os sellers de um produto pela própria relação (`findByIdWithSellers`, D-024), então não depende de `sellers`.
 - `ProductNormalizerService` é o service puro da regra de chave (D-025). `products` também o registra no próprio módulo para a busca (D-070).
 - `shared/` não conhece módulo nenhum: guarda o mapa `code → HTTP` (cada módulo registra os seus, D-032).
@@ -114,5 +117,5 @@ Na importação, a transação cobre o arquivo inteiro (D-080). Um erro inespera
 ## Referências
 
 - Banco e migrations: [`database.md`](database.md)
-- Módulos: [`modules/catalog-import.md`](modules/catalog-import.md), [`modules/products.md`](modules/products.md), [`modules/sellers.md`](modules/sellers.md)
+- Módulos: [`modules/catalog-import.md`](modules/catalog-import.md), [`modules/products.md`](modules/products.md), [`modules/sellers.md`](modules/sellers.md), [`modules/normalization-types.md`](modules/normalization-types.md)
 - Decisões: [`decisions.md`](decisions.md)

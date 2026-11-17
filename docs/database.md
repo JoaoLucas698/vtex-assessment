@@ -1,6 +1,6 @@
 # Banco de dados
 
-Documenta o banco fornecido, o schema final e a migration que leva de um ao outro. A fonte do modelo é `backend/prisma/schema.prisma`; as regras de negócio estão em `docs/context.md` §3 e as decisões em `docs/decisions.md` (D-002, D-003, D-005, D-018 a D-022, D-050 a D-056).
+Documenta o banco fornecido, o schema final e a migration que leva de um ao outro. A fonte do modelo é `backend/prisma/schema.prisma`; as regras de negócio estão em `docs/context.md` §3 e as decisões em `docs/decisions.md` (D-002, D-003, D-005, D-018 a D-022, D-050 a D-056, D-110, D-111).
 
 O banco original `database/catalog.db` nunca é alterado. O desenvolvimento usa a cópia `database/catalog.dev.db` (ignorada no git), apontada por `DATABASE_URL` no `backend/.env`.
 
@@ -27,6 +27,16 @@ CREATE TABLE SellerProduct (
 erDiagram
   Seller ||--o{ SellerProduct : "vende"
   Product ||--o{ SellerProduct : "é vendido por"
+  NormalizationType ||--o{ Product : "gera a chave de"
+  NormalizationType {
+    Int Id PK
+    String Code UK "NAME_BRAND | NAME_CATEGORY | NAME_BRAND_CATEGORY"
+    String Description
+    Boolean IncludesBrand
+    Boolean IncludesCategory
+    DateTime CreatedAt
+    DateTime UpdatedAt
+  }
   Seller {
     Int Id PK
     String SellerName UK
@@ -38,7 +48,8 @@ erDiagram
     String Name
     String Brand "nullable"
     String Category "nullable"
-    String NormalizedKey UK
+    Int NormalizationTypeId FK
+    String NormalizedKey "unique com NormalizationTypeId"
     DateTime CreatedAt
     DateTime UpdatedAt
   }
@@ -56,7 +67,17 @@ erDiagram
   }
 ```
 
-Constraints unique: `Seller (SellerName)`, `Product (NormalizedKey)`, `SellerProduct (ProductId, SellerId)`, `SellerProduct (SellerId, ExternalId)`. Nenhum índice além desses (D-051).
+Constraints unique: `Seller (SellerName)`, `NormalizationType (Code)`, `Product (NormalizationTypeId, NormalizedKey)`, `SellerProduct (ProductId, SellerId)`, `SellerProduct (SellerId, ExternalId)`. Índice simples: `Product (NormalizedKey)`, para a busca da listagem, que filtra só pela chave (D-051, D-111).
+
+`NormalizationType` tem 3 linhas fixas, inseridas pela migration `add_normalization_types` (D-110):
+
+| Id | Code | Description | IncludesBrand | IncludesCategory |
+|---|---|---|---|---|
+| 1 | `NAME_BRAND` | Nome + Marca | 1 | 0 |
+| 2 | `NAME_CATEGORY` | Nome + Categoria | 0 | 1 |
+| 3 | `NAME_BRAND_CATEGORY` | Nome + Marca + Categoria | 1 | 1 |
+
+A chave tem as partes incluídas na ordem `marca | categoria | nome`, unidas por `|`; o nome sempre entra. `NAME_BRAND` = `marca|nome`, a chave de sempre.
 
 Nos models do Prisma os campos são `camelCase` (`normalizedKey`, `externalId`...), mapeados com `@map`/`@@map` para as colunas em PascalCase (D-050).
 
@@ -65,7 +86,9 @@ Nos models do Prisma os campos são `camelCase` (`normalizedKey`, `externalId`..
 | Item | Original | Final |
 |---|---|---|
 | `Seller` | não existe | tabela nova, criada dos `SellerName` distintos do vínculo (D-002) |
-| `Product.NormalizedKey` | não existe | `TEXT NOT NULL UNIQUE`, `marca normalizada\|nome normalizado` (D-005) |
+| `Product.NormalizedKey` | não existe | `TEXT NOT NULL`, `marca normalizada\|nome normalizado` (D-005); único dentro do tipo, com índice simples (D-111) |
+| `NormalizationType` | não existe | tabela nova com os 3 tipos de normalização da chave (D-110) |
+| `Product.NormalizationTypeId` | não existe | `INTEGER NOT NULL`, FK para `NormalizationType` (`RESTRICT / CASCADE`); produtos existentes = 1 (`NAME_BRAND`) (D-111) |
 | `Product.CreatedAt/UpdatedAt` | não existem | novas, obrigatórias; registros existentes recebem o momento da migration (D-053) |
 | `SellerProduct.SellerName` | texto | removida; vira `SellerId` (FK para `Seller`) |
 | `SellerProduct.SellerProductId` | `INTEGER NOT NULL` | removida; vira `ExternalId TEXT` nullable com `CAST(SellerProductId AS TEXT)` (D-020) |
@@ -81,6 +104,7 @@ Nos models do Prisma os campos são `camelCase` (`normalizedKey`, `externalId`..
 |---|---|
 | `0_init` | Baseline do banco fornecido, gerada com `prisma migrate diff --from-empty --to-schema-datamodel`. Marcada como aplicada (`prisma migrate resolve --applied 0_init`), sem executar nada. |
 | `20261114041027_consolidate_catalog` | Migration escrita à mão (`prisma migrate dev --create-only` + SQL reescrito). Passos abaixo. |
+| `20261117185336_add_normalization_types` | Tipos de normalização (D-110, D-111). Gerada com `prisma migrate dev --create-only` e SQL editado à mão. Passos abaixo. |
 
 ### `consolidate_catalog`, passo a passo
 
@@ -93,6 +117,25 @@ Nos models do Prisma os campos são `camelCase` (`normalizedKey`, `externalId`..
 7. Recria `Product` com `NormalizedKey NOT NULL`, mantendo ids e `sqlite_sequence`, e cria os quatro índices unique.
 
 O SQL preserva os `PRAGMA foreign_keys`/`defer_foreign_keys` do padrão de redefinição do Prisma. O arquivo é só ASCII (acentos escritos com `char(N)`).
+
+### `add_normalization_types`, passo a passo
+
+1. Guarda o `sqlite_sequence` de `Product` e tira uma foto `(Id, NormalizedKey)` de todos os produtos.
+2. Cria `NormalizationType` (com o unique em `Code`) e insere os 3 tipos com ids fixos.
+3. Recria `Product` com `NormalizationTypeId INTEGER NOT NULL` (FK para `NormalizationType`), copiando `Id`, `Name`, `Brand`, `Category`, `NormalizedKey`, `CreatedAt` e `UpdatedAt` e gravando `NormalizationTypeId = 1` (`NAME_BRAND`) em todos. As chaves não são recalculadas: `NAME_BRAND` é a regra que as gerou.
+4. Troca o unique de `NormalizedKey` pelo composto `(NormalizationTypeId, NormalizedKey)` e cria o índice simples em `NormalizedKey`.
+5. Restaura o `sqlite_sequence` (ids nunca reaproveitados).
+6. Trava final: um `CHECK` numa tabela temporária aborta a migration (`produtos_ou_chaves_mudaram_na_migration_add_normalization_types`) se a quantidade de produtos mudar ou se algum `(Id, NormalizedKey)` não bater com a foto do passo 1.
+
+Mesmo padrão da `consolidate_catalog`: `PRAGMA foreign_keys` desligado durante a recriação e arquivo só ASCII.
+
+| Medida (banco real) | Antes | Depois |
+|---|---|---|
+| Produtos | 975 | 975 |
+| Produtos com `NormalizationTypeId = 1` | - | 975 |
+| `NormalizedKey` alterados | - | 0 |
+| `sqlite_sequence` de `Product` | 975 | 975 |
+| `PRAGMA foreign_key_check` | - | sem violações |
 
 `prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma` não acusa diferença: o histórico reproduz exatamente o `schema.prisma`.
 
@@ -157,4 +200,5 @@ Em `backend/test/database/`, rodados por `npm run test:e2e` (cada teste copia `d
 
 - `migration.e2e-spec.ts`: banco real. 975 produtos, 0 unidos, 0 vínculos, nenhum `normalizedKey` repetido ou vazio, ids preservados (produto 1 continua "Knife Set Professional"), próximo id 976, sem violação de FK, banco original intacto.
 - `migration-legacy-data.e2e-spec.ts`: dados legados sintéticos. Produtos duplicados por espaço duplo, acento, aspas e caixa; vínculos apontando para eles; vínculo repetido; `ExternalId` em texto; sellers criados; dados copiados do produto original; id do produto removido não é reaproveitado.
+- `normalization-types-migration.e2e-spec.ts`: aplica as migrations só até `consolidate_catalog` (`LegacyDatabase.migrateUpTo`), tira a foto de `(Id, NormalizedKey)` e do `sqlite_sequence`, aplica o resto com `migrate deploy` e confere: 3 tipos com ids, códigos e flags fixos; todo produto legado com `NAME_BRAND`; mesma quantidade e cada `(Id, NormalizedKey)` idêntico; a mesma chave aceita em outro tipo e recusada (`P2002`) no mesmo tipo; FK recusa tipo inexistente; próximo id acima do contador antigo; sem violação de FK; banco original intacto.
 - `normalized-key-consistency.e2e-spec.ts`: lê todos os produtos depois da migration e compara `normalizedKey` com `ProductNormalizerService.buildKey`. Inclui o banco real e casos sintéticos para cada letra de U+00C0 a U+017F, espaços Unicode, aspas, `''`, marca nula ou vazia e texto já decomposto.

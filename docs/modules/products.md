@@ -29,17 +29,18 @@ Listagem: `validatePagination` (função compartilhada, D-060) -> `normalizeQuer
 - Ordenação estável por `id`.
 - `sellersCount` é o número de `SellerProduct` do produto.
 - O detalhe mostra os dados oficiais do produto e, para cada seller, os dados como ele enviou (D-013) e o `matchedBy` (D-015).
+- Cada produto guarda o tipo de normalização que gerou a sua chave (`normalizationTypeId`, D-110). A chave é única dentro do tipo, não no catálogo todo (D-111). Os produtos que já existiam são `NAME_BRAND` e mantêm a chave `marca|nome`. A busca continua comparando só `normalizedKey`, então acha produtos de qualquer tipo (índice simples em `NormalizedKey`). A listagem e o detalhe não expõem o tipo.
 - `brand` e `category` que o seller não informou (`null` no banco) vêm do produto oficial, campo a campo (D-014). Só `null` cai para o oficial; texto do seller, mesmo vazio, vem como foi enviado. `externalId` não tem fallback.
 
 ## Componentes
 - `ListProductsUseCase`, `GetProductDetailUseCase`: os dois casos de uso da API.
-- `ProductRepository`: único acesso ao `Product`. Métodos: `findByNormalizedKey(key, tx?)`, `create(data, tx?)`, `search({ q, page, pageSize })`, `findByIdWithSellers(id)`. Os dois primeiros serão usados pela importação.
+- `ProductRepository`: único acesso ao `Product`. Métodos: `findByTypeAndKey(normalizationTypeId, normalizedKey, tx?)` (pelo unique composto, D-111), `create(data, tx?)` (`data` inclui `normalizationTypeId`), `search({ q, page, pageSize })`, `findByIdWithSellers(id)`. Os dois primeiros são usados pela importação.
 - `ProductNormalizerService`: registrado no módulo (D-070), vem do `catalog-import`.
 - Schemas: `product.types.ts`, `products.errors.ts` (`PRODUCT_NOT_FOUND` registrado com `registerErrorStatuses`) e DTOs de request e response com Swagger. `ListProductsRequestDto` herda `page`/`pageSize` do `PaginationRequestDto` compartilhado e só acrescenta `q`.
 - Consts: `consts/products.swagger-examples.ts` com os exemplos de 400 e 404 do Swagger, tipados com `ErrorResponseBody` (D-038).
 
 ## Decisões relacionadas
-D-004, D-005, D-013, D-014, D-015, D-021, D-024, D-032, D-038, D-060, D-061, D-070 em `docs/decisions.md`.
+D-004, D-005, D-013, D-014, D-015, D-021, D-024, D-032, D-038, D-060, D-061, D-070, D-110, D-111 em `docs/decisions.md`.
 
 ## Testes
 - Unitários dos usecases (lista vazia, paginação, paginação inválida, termo com acento, maiúscula e espaço duplo, termo malicioso, detalhe com vários sellers, fallback de `brand`/`category` para o oficial, texto vazio mantido, `null` quando os dois não têm, não encontrado).
