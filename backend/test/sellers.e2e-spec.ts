@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '@/app.module';
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 import { SellerProductRepository } from '@modules/sellers/repositories/seller-product.repository';
 import { SellerRepository } from '@modules/sellers/repositories/seller.repository';
 import { configureApp } from '@shared/config/configure-app';
@@ -57,7 +58,11 @@ describe('Sellers e2e', () => {
     const sellerRepository = app.get(SellerRepository);
     const sellerProductRepository = app.get(SellerProductRepository);
     const product = await prisma.product.create({
-      data: { name: 'Produto Oficial', normalizedKey: 'produto|oficial' },
+      data: {
+        name: 'Produto Oficial',
+        normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
+        normalizedKey: 'produto|oficial',
+      },
     });
     const malicious = await sellerRepository.create(MALICIOUS_NAME);
     maliciousSellerId = malicious.id;

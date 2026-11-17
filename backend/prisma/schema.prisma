@@ -16,16 +16,33 @@ model Seller {
   @@map("Seller")
 }
 
-model Product {
-  id             Int             @id @default(autoincrement()) @map("Id")
-  name           String          @map("Name")
-  brand          String?         @map("Brand")
-  category       String?         @map("Category")
-  normalizedKey  String          @unique @map("NormalizedKey")
-  createdAt      DateTime        @default(now()) @map("CreatedAt")
-  updatedAt      DateTime        @updatedAt @map("UpdatedAt")
-  sellerProducts SellerProduct[]
+model NormalizationType {
+  id               Int       @id @default(autoincrement()) @map("Id")
+  code             String    @unique @map("Code")
+  description      String    @map("Description")
+  includesBrand    Boolean   @map("IncludesBrand")
+  includesCategory Boolean   @map("IncludesCategory")
+  createdAt        DateTime  @default(now()) @map("CreatedAt")
+  updatedAt        DateTime  @updatedAt @map("UpdatedAt")
+  products         Product[]
 
+  @@map("NormalizationType")
+}
+
+model Product {
+  id                  Int               @id @default(autoincrement()) @map("Id")
+  name                String            @map("Name")
+  brand               String?           @map("Brand")
+  category            String?           @map("Category")
+  normalizationTypeId Int               @map("NormalizationTypeId")
+  normalizedKey       String            @map("NormalizedKey")
+  createdAt           DateTime          @default(now()) @map("CreatedAt")
+  updatedAt           DateTime          @updatedAt @map("UpdatedAt")
+  normalizationType   NormalizationType @relation(fields: [normalizationTypeId], references: [id])
+  sellerProducts      SellerProduct[]
+
+  @@unique([normalizationTypeId, normalizedKey])
+  @@index([normalizedKey])
   @@map("Product")
 }
 

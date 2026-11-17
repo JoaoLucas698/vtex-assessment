@@ -129,6 +129,7 @@ Com catálogo vazio, o mesmo arquivo cria 201 produtos e 257 vínculos (cenário
 | `GET` | `/api/products/:id` | Detalhe do produto com os sellers que o oferecem |
 | `GET` | `/api/sellers` | Lista sellers com a quantidade de produtos |
 | `GET` | `/api/sellers/:id/products` | Produtos de um seller, com os dados que ele enviou |
+| `GET` | `/api/normalization-types` | Tipos de normalização da chave do produto (Nome + Marca, Nome + Categoria, Nome + Marca + Categoria) |
 
 As listas aceitam `page` (padrão 1) e `pageSize` (padrão 20, máximo 100) (D-060). Nos dados do seller, `brand` e `category` que ele não informou vêm do produto oficial (D-014). Erros voltam como `{ statusCode, code, message }`.
 

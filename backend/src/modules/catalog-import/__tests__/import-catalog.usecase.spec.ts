@@ -20,6 +20,7 @@ import { ImportReportService } from '@modules/catalog-import/services/import-rep
 import { ProductMatchingService } from '@modules/catalog-import/services/product-matching.service';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
 import { ImportCatalogUseCase } from '@modules/catalog-import/usecases/import-catalog.usecase';
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 import { ProductRepository } from '@modules/products/repositories/product.repository';
 import type { ProductRecord } from '@modules/products/schemas/product.types';
 import { SellerProductRepository } from '@modules/sellers/repositories/seller-product.repository';
@@ -84,6 +85,7 @@ function product(id: number): ProductRecord {
     name: 'Produto',
     brand: null,
     category: null,
+    normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
     normalizedKey: 'k',
   };
 }
@@ -210,7 +212,7 @@ describe('ImportCatalogUseCase', () => {
       sellerRepository.create.mockResolvedValue(seller(1, 'MegaStore'));
       sellerProductRepository.findBySellerAndExternalId.mockResolvedValue(null);
       sellerProductRepository.findBySellerAndProduct.mockResolvedValue(null);
-      productRepository.findByNormalizedKey.mockResolvedValue(null);
+      productRepository.findByTypeAndKey.mockResolvedValue(null);
       productRepository.create.mockResolvedValue(product(10));
       sellerProductRepository.create.mockResolvedValue(link());
       normalizer.buildKey.mockReturnValue('samsung|smartphone galaxy s23');
@@ -240,6 +242,7 @@ describe('ImportCatalogUseCase', () => {
           name: 'Smartphone Galaxy S23',
           brand: 'Samsung',
           category: 'Electronics',
+          normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
           normalizedKey: 'samsung|smartphone galaxy s23',
         },
         tx,
@@ -272,7 +275,7 @@ describe('ImportCatalogUseCase', () => {
 
     it('liga a produto existente pela chave normalizada (normalized_key) sem criar produto', async () => {
       givenFile([item({ name: 'Smartphone  Galaxy S23' })]);
-      productRepository.findByNormalizedKey.mockResolvedValue(product(7));
+      productRepository.findByTypeAndKey.mockResolvedValue(product(7));
       matching.decide.mockReturnValue({
         type: MatchDecisionType.LINK_EXISTING,
         productId: 7,
@@ -283,7 +286,8 @@ describe('ImportCatalogUseCase', () => {
       const result = await sut.execute(INPUT);
 
       expect(result.isSuccess).toBe(true);
-      expect(productRepository.findByNormalizedKey).toHaveBeenCalledWith(
+      expect(productRepository.findByTypeAndKey).toHaveBeenCalledWith(
+        LEGACY_NORMALIZATION_TYPE_ID,
         'samsung|smartphone galaxy s23',
         tx,
       );
@@ -355,7 +359,7 @@ describe('ImportCatalogUseCase', () => {
         matchedBy: MatchedBy.LEGACY,
         reason: null,
       });
-      expect(productRepository.findByNormalizedKey).not.toHaveBeenCalled();
+      expect(productRepository.findByTypeAndKey).not.toHaveBeenCalled();
       expect(productRepository.create).not.toHaveBeenCalled();
       expect(sellerProductRepository.create).not.toHaveBeenCalled();
       expect(sellerRepository.create).not.toHaveBeenCalled();
@@ -418,7 +422,7 @@ describe('ImportCatalogUseCase', () => {
     it('mesmo produto enviado de novo pelo mesmo seller com outro Id: nada é gravado e vale o primeiro', async () => {
       const kept = link({ id: 100, productId: 10, externalId: 'id-1' });
       givenFile([item({ externalId: 'id-2' })]);
-      productRepository.findByNormalizedKey.mockResolvedValue(product(10));
+      productRepository.findByTypeAndKey.mockResolvedValue(product(10));
       sellerProductRepository.findBySellerAndProduct.mockResolvedValue(kept);
       matching.decide.mockReturnValue({
         type: MatchDecisionType.DUPLICATE_SAME_SELLER,
@@ -451,7 +455,7 @@ describe('ImportCatalogUseCase', () => {
 
     it('duplicado contra vínculo legado sem externalId explica no motivo', async () => {
       givenFile([item()]);
-      productRepository.findByNormalizedKey.mockResolvedValue(product(10));
+      productRepository.findByTypeAndKey.mockResolvedValue(product(10));
       sellerProductRepository.findBySellerAndProduct.mockResolvedValue(
         link({ externalId: null, matchedBy: MatchedBy.LEGACY }),
       );
@@ -478,7 +482,7 @@ describe('ImportCatalogUseCase', () => {
       sellerRepository.create
         .mockResolvedValueOnce(seller(1, 'MegaStore'))
         .mockResolvedValueOnce(seller(2, 'FitnessCenter'));
-      productRepository.findByNormalizedKey
+      productRepository.findByTypeAndKey
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(product(10));
       matching.decide.mockReturnValueOnce(CREATE).mockReturnValueOnce({
@@ -499,7 +503,7 @@ describe('ImportCatalogUseCase', () => {
       );
       expect(productRepository.create).toHaveBeenCalledTimes(1);
       expect(productRepository.create.mock.invocationCallOrder[0]).toBeLessThan(
-        productRepository.findByNormalizedKey.mock.invocationCallOrder[1],
+        productRepository.findByTypeAndKey.mock.invocationCallOrder[1],
       );
       expect(report.build).toHaveBeenCalledWith(
         2,
@@ -598,6 +602,7 @@ describe('ImportCatalogUseCase', () => {
           name: 'Cable Organizer Kit',
           brand: null,
           category: null,
+          normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
           normalizedKey: '|cable organizer kit',
         },
         tx,
@@ -661,6 +666,7 @@ describe('ImportCatalogUseCase', () => {
           name: ' Jeans 501  Original ',
           brand: "Levi's",
           category: null,
+          normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
           normalizedKey: 'levis|jeans 501 original',
         },
         tx,

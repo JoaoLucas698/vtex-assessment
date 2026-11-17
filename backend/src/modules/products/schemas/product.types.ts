@@ -24,6 +24,8 @@ export interface CreateProductData {
   name: string;
   brand: string | null;
   category: string | null;
+  /** Tipo de normalização que gerou a chave (D-110). */
+  normalizationTypeId: number;
   normalizedKey: string;
 }
 
@@ -33,6 +35,7 @@ export interface ProductRecord {
   name: string;
   brand: string | null;
   category: string | null;
+  normalizationTypeId: number;
   normalizedKey: string;
 }
 

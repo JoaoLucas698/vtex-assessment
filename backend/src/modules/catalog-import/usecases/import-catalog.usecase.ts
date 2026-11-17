@@ -21,6 +21,7 @@ import { CatalogFileParserService } from '@modules/catalog-import/services/catal
 import { ImportReportService } from '@modules/catalog-import/services/import-report.service';
 import { ProductMatchingService } from '@modules/catalog-import/services/product-matching.service';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 import { ProductRepository } from '@modules/products/repositories/product.repository';
 import { SellerProductRepository } from '@modules/sellers/repositories/seller-product.repository';
 import { SellerRepository } from '@modules/sellers/repositories/seller.repository';
@@ -168,7 +169,8 @@ export class ImportCatalogUseCase {
       });
     }
 
-    const productByKey = await this.productRepository.findByNormalizedKey(
+    const productByKey = await this.productRepository.findByTypeAndKey(
+      LEGACY_NORMALIZATION_TYPE_ID,
       normalizedKey,
       tx,
     );
@@ -270,6 +272,7 @@ export class ImportCatalogUseCase {
         name: item.name,
         brand: item.brand,
         category: item.category,
+        normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
         normalizedKey: lookup.normalizedKey,
       },
       tx,

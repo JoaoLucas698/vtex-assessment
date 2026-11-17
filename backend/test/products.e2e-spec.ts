@@ -7,6 +7,7 @@ import { LegacyDatabase } from '@test/helpers/legacy-database';
 import { configureApp } from '@shared/config/configure-app';
 import { PrismaService } from '@shared/prisma/prisma.service';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 
 interface ListBody {
   items: {
@@ -52,6 +53,7 @@ describe('Products e2e', () => {
         name,
         brand,
         category: 'Cat',
+        normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
         normalizedKey: normalizer.buildKey(brand, name),
       },
     });
