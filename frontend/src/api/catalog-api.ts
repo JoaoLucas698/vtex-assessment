@@ -1,21 +1,29 @@
 import { request } from '@api/http';
 import type {
   ImportCatalogResponse,
+  ListNormalizationTypesResponse,
   ListProductsParams,
+  NormalizationTypeCode,
   ListProductsResponse,
   ProductDetailResponse,
 } from '@api/types';
 
 export interface CatalogApi {
-  importCatalog(file: File): Promise<ImportCatalogResponse>;
+  importCatalog(file: File, normalizationType?: NormalizationTypeCode): Promise<ImportCatalogResponse>;
+  listNormalizationTypes(): Promise<ListNormalizationTypesResponse>;
   listProducts(params: ListProductsParams): Promise<ListProductsResponse>;
   getProduct(id: number): Promise<ProductDetailResponse>;
 }
 
 export const catalogApi: CatalogApi = {
-  importCatalog(file) {
+  listNormalizationTypes() {
+    return request<ListNormalizationTypesResponse>('/api/normalization-types');
+  },
+
+  importCatalog(file, normalizationType) {
     const form = new FormData();
     form.append('file', file);
+    if (normalizationType) form.append('normalizationType', normalizationType);
     return request<ImportCatalogResponse>('/api/catalog-import', { method: 'POST', body: form });
   },
 
