@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import type {
+  NormalizationRule,
+  ProductKeyFields,
+} from '@modules/catalog-import/schemas/catalog-import.types';
 
 /** Marcas combinantes (acentos) que sobram depois da decomposição NFD. */
 const COMBINING_MARKS = /\p{M}/gu;
@@ -6,7 +10,7 @@ const COMBINING_MARKS = /\p{M}/gu;
 const QUOTES = /["']/g;
 /** Qualquer sequência de whitespace (espaço, tab, quebra de linha). */
 const WHITESPACE_RUN = /\s+/g;
-/** Separador entre marca e nome na chave. Impede que marca vazia colida com marca preenchida. */
+/** Separador entre as partes da chave. Impede que parte vazia colida com parte preenchida. */
 const KEY_SEPARATOR = '|';
 
 /**
@@ -15,8 +19,9 @@ const KEY_SEPARATOR = '|';
  *
  * Esta é a **única** implementação TypeScript da regra. O backfill da migration
  * replica exatamente os mesmos passos em SQL, e um teste de consistência compara
- * as duas chaves em todos os produtos do banco (D-019). Por isso a regra não pode
- * ganhar passos novos sem mudar o SQL e recalcular as chaves no mesmo PR.
+ * as duas chaves (regra `NAME_BRAND`) em todos os produtos do banco (D-019). Por isso
+ * o `normalize` não pode ganhar passos novos sem mudar o SQL e recalcular as chaves
+ * no mesmo PR.
  *
  * Service puro: sem estado e sem dependências.
  */
@@ -46,11 +51,27 @@ export class ProductNormalizerService {
   }
 
   /**
-   * Monta o `normalizedKey` do produto: `<marca normalizada>|<nome normalizado>`.
-   * Marca `null`, `undefined` ou vazia gera `|<nome normalizado>`.
-   * A categoria não entra na chave (varia entre sellers para o mesmo produto).
+   * Monta o `normalizedKey` do produto conforme a regra do tipo de normalização
+   * (D-110, D-112). As partes entram sempre nesta ordem, só as incluídas pela regra,
+   * cada uma normalizada e unidas por `|`:
+   *
+   * `<marca>|<categoria>|<nome>`
+   *
+   * - `NAME_BRAND` (marca e nome): `<marca>|<nome>`, exatamente o formato das chaves
+   *   legadas e do backfill da migration. É este formato que o teste de consistência
+   *   compara com o SQL (D-019);
+   * - `NAME_CATEGORY`: `<categoria>|<nome>`;
+   * - `NAME_BRAND_CATEGORY`: `<marca>|<categoria>|<nome>`.
+   *
+   * Marca ou categoria `null`, `undefined` ou vazia viram parte vazia (ex.: `|<nome>`),
+   * e o separador continua lá: com o número de partes fixo por regra, um campo vazio
+   * não colide com um campo preenchido.
    */
-  buildKey(brand: string | null | undefined, name: string): string {
-    return `${this.normalize(brand)}${KEY_SEPARATOR}${this.normalize(name)}`;
+  buildKey(fields: ProductKeyFields, rule: NormalizationRule): string {
+    const parts: (string | null | undefined)[] = [];
+    if (rule.includesBrand) parts.push(fields.brand);
+    if (rule.includesCategory) parts.push(fields.category);
+    parts.push(fields.name);
+    return parts.map((part) => this.normalize(part)).join(KEY_SEPARATOR);
   }
 }

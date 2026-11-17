@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   HttpCode,
   HttpStatus,
@@ -47,7 +48,7 @@ export class CatalogImportController {
     summary:
       'Importa um arquivo JSON de produtos de sellers e consolida no catálogo, sem duplicar produtos.',
     description:
-      'Processa os itens na ordem do arquivo, numa única transação. Itens inválidos são rejeitados individualmente e aparecem no relatório com o motivo. Reimportar o mesmo arquivo não altera o catálogo (idempotente).',
+      'Processa os itens na ordem do arquivo, numa única transação. Itens inválidos são rejeitados individualmente e aparecem no relatório com o motivo. Reimportar o mesmo arquivo não altera o catálogo (idempotente). O campo opcional `normalizationType` escolhe a regra da chave dos produtos criados (padrão `NAME_BRAND`); itens que batem com um produto existente são ligados a ele pela regra do próprio produto, com prioridade para o tipo escolhido.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: ImportCatalogRequestDto })
@@ -59,7 +60,7 @@ export class CatalogImportController {
   })
   @ApiResponse({
     status: 400,
-    description: `Arquivo ausente (${CatalogImportErrorCode.FILE_REQUIRED}), JSON inválido ou que não é um array (${CatalogImportErrorCode.INVALID_FILE}), ou array sem itens (${CatalogImportErrorCode.EMPTY_FILE}).`,
+    description: `Arquivo ausente (${CatalogImportErrorCode.FILE_REQUIRED}), JSON inválido ou que não é um array (${CatalogImportErrorCode.INVALID_FILE}), array sem itens (${CatalogImportErrorCode.EMPTY_FILE}), tipo de normalização não cadastrado (${CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE}) ou campo normalizationType com formato inválido (${CommonErrorCode.VALIDATION_ERROR}).`,
     content: {
       'application/json': {
         examples: IMPORT_CATALOG_BAD_REQUEST_EXAMPLES,
@@ -73,8 +74,12 @@ export class CatalogImportController {
   })
   async import(
     @UploadedFile() file: UploadedCatalogFile | undefined,
+    @Body() body: ImportCatalogRequestDto,
   ): Promise<ImportCatalogResponseDto> {
-    const result = await this.importCatalogUseCase.execute({ file });
+    const result = await this.importCatalogUseCase.execute({
+      file,
+      normalizationType: body.normalizationType,
+    });
     return ImportCatalogResponseDto.from(unwrapResult(result));
   }
 }

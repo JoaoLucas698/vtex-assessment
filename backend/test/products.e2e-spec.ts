@@ -35,6 +35,8 @@ interface DetailBody {
 }
 
 const MALICIOUS_BRAND = "TestBrand'; SELECT 1; --";
+/** Regra dos produtos legados (`NAME_BRAND`): `<marca>|<nome>`. */
+const NAME_BRAND_RULE = { includesBrand: true, includesCategory: false };
 
 describe('Products e2e', () => {
   let app: INestApplication;
@@ -54,7 +56,10 @@ describe('Products e2e', () => {
         brand,
         category: 'Cat',
         normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
-        normalizedKey: normalizer.buildKey(brand, name),
+        normalizedKey: normalizer.buildKey(
+          { name, brand, category: null },
+          NAME_BRAND_RULE,
+        ),
       },
     });
     ids[key] = product.id;

@@ -2,6 +2,7 @@
  * Tipos de domínio do módulo `catalog-import` ligados à normalização e ao matching
  * (`docs/context.md` §4, D-005, D-012, D-015, D-040).
  */
+import type { NormalizationTypeCode } from '@modules/normalization-types/schemas/normalization-type.types';
 
 /**
  * Origem de um vínculo `SellerProduct` (coluna `matchedBy`, D-015).
@@ -102,6 +103,22 @@ export type MatchDecision =
   | CreateProductDecision
   | DuplicateSameSellerDecision;
 
+/** Campos do produto que podem entrar no `normalizedKey`. */
+export interface ProductKeyFields {
+  readonly name: string;
+  readonly brand: string | null | undefined;
+  readonly category: string | null | undefined;
+}
+
+/**
+ * Regra de montagem do `normalizedKey` (D-110): o nome sempre entra; marca e
+ * categoria entram conforme as flags do tipo de normalização.
+ */
+export interface NormalizationRule {
+  readonly includesBrand: boolean;
+  readonly includesCategory: boolean;
+}
+
 /** Arquivo recebido no upload, no formato mínimo que a importação usa. */
 export interface UploadedCatalogFile {
   readonly buffer: Buffer;
@@ -142,9 +159,14 @@ export interface ParsedCatalogFile {
   readonly invalid: InvalidCatalogItem[];
 }
 
-/** Entrada do usecase de importação. `file` ausente vira `FILE_REQUIRED`. */
+/**
+ * Entrada do usecase de importação. `file` ausente vira `FILE_REQUIRED`.
+ * `normalizationType` ausente usa o padrão `NAME_BRAND` (D-113); código desconhecido
+ * vira `INVALID_NORMALIZATION_TYPE`.
+ */
 export interface ImportCatalogInput {
   readonly file: UploadedCatalogFile | null | undefined;
+  readonly normalizationType?: string | null;
 }
 
 /** Linha do relatório: o que aconteceu com um item do arquivo. */
@@ -171,7 +193,13 @@ export interface ImportTotals {
   readonly duplicateSameSeller: number;
 }
 
-export interface ImportCatalogOutput {
+/** Totais e linhas do relatório, montados pelo `ImportReportService`. */
+export interface ImportReport {
   readonly totals: ImportTotals;
   readonly items: ImportItemReport[];
+}
+
+export interface ImportCatalogOutput extends ImportReport {
+  /** Código do tipo de normalização usado na importação (D-113). */
+  readonly normalizationType: NormalizationTypeCode;
 }

@@ -1,3 +1,4 @@
+import type { NormalizationRule } from '@modules/catalog-import/schemas/catalog-import.types';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
 
 describe('ProductNormalizerService', () => {
@@ -89,91 +90,222 @@ describe('ProductNormalizerService', () => {
   });
 
   describe('buildKey', () => {
-    it('monta a chave no formato <marca>|<nome>', () => {
-      expect(sut.buildKey('Samsung', 'Smartphone Galaxy S23')).toBe(
-        'samsung|smartphone galaxy s23',
-      );
+    const NAME_BRAND: NormalizationRule = {
+      includesBrand: true,
+      includesCategory: false,
+    };
+    const NAME_CATEGORY: NormalizationRule = {
+      includesBrand: false,
+      includesCategory: true,
+    };
+    const NAME_BRAND_CATEGORY: NormalizationRule = {
+      includesBrand: true,
+      includesCategory: true,
+    };
+
+    /** Atalho para a regra NAME_BRAND (formato legado `<marca>|<nome>`). */
+    const brandKey = (brand: string | null | undefined, name: string): string =>
+      sut.buildKey({ name, brand, category: null }, NAME_BRAND);
+
+    describe('regras', () => {
+      const fields = {
+        name: 'Câmera  Canon EOS R6',
+        brand: 'Canon',
+        category: 'Fotografia',
+      };
+
+      it('NAME_BRAND monta <marca>|<nome>', () => {
+        expect(sut.buildKey(fields, NAME_BRAND)).toBe(
+          'canon|camera canon eos r6',
+        );
+      });
+
+      it('NAME_CATEGORY monta <categoria>|<nome>', () => {
+        expect(sut.buildKey(fields, NAME_CATEGORY)).toBe(
+          'fotografia|camera canon eos r6',
+        );
+      });
+
+      it('NAME_BRAND_CATEGORY monta <marca>|<categoria>|<nome>', () => {
+        expect(sut.buildKey(fields, NAME_BRAND_CATEGORY)).toBe(
+          'canon|fotografia|camera canon eos r6',
+        );
+      });
+
+      it('NAME_BRAND ignora a categoria (Photography × Photo dão a mesma chave)', () => {
+        expect(
+          sut.buildKey({ ...fields, category: 'Photography' }, NAME_BRAND),
+        ).toBe(sut.buildKey({ ...fields, category: 'Photo' }, NAME_BRAND));
+      });
+
+      it('NAME_CATEGORY ignora a marca', () => {
+        expect(sut.buildKey({ ...fields, brand: 'Outra' }, NAME_CATEGORY)).toBe(
+          sut.buildKey(fields, NAME_CATEGORY),
+        );
+      });
+
+      it('NAME_BRAND gera exatamente o formato antigo `${normalize(marca)}|${normalize(nome)}`', () => {
+        const samples: [string | null, string][] = [
+          ['Samsung', 'Smartphone Galaxy S23'],
+          [null, 'Cable Organizer Kit'],
+          ["Levi's", ' Jeans  501 '],
+          ['  ', 'Só espaços'],
+          ['Ação', 'Câmera 12.9"'],
+        ];
+        for (const [brand, name] of samples) {
+          expect(
+            sut.buildKey({ name, brand, category: 'Qualquer' }, NAME_BRAND),
+          ).toBe(`${sut.normalize(brand)}|${sut.normalize(name)}`);
+        }
+      });
+    });
+
+    describe('marca e categoria vazias', () => {
+      it.each([
+        ['null', null],
+        ['undefined', undefined],
+        ['vazia', ''],
+        ['só espaços', '  '],
+      ])('marca %s vira parte vazia: |<nome>', (_label, brand) => {
+        expect(brandKey(brand, 'Cable Organizer Kit')).toBe(
+          '|cable organizer kit',
+        );
+      });
+
+      it.each([
+        ['null', null],
+        ['undefined', undefined],
+        ['vazia', ''],
+        ['só espaços', '  '],
+      ])('categoria %s vira parte vazia: |<nome>', (_label, category) => {
+        expect(
+          sut.buildKey(
+            { name: 'Cable Organizer Kit', brand: 'Acme', category },
+            NAME_CATEGORY,
+          ),
+        ).toBe('|cable organizer kit');
+      });
+
+      it('NAME_BRAND_CATEGORY mantém as três partes mesmo com marca e categoria vazias', () => {
+        expect(
+          sut.buildKey(
+            { name: 'Cable Organizer Kit', brand: null, category: null },
+            NAME_BRAND_CATEGORY,
+          ),
+        ).toBe('||cable organizer kit');
+        expect(
+          sut.buildKey(
+            { name: 'Kit', brand: null, category: 'Casa' },
+            NAME_BRAND_CATEGORY,
+          ),
+        ).toBe('|casa|kit');
+        expect(
+          sut.buildKey(
+            { name: 'Kit', brand: 'Acme', category: null },
+            NAME_BRAND_CATEGORY,
+          ),
+        ).toBe('acme||kit');
+      });
+    });
+
+    describe('separadores evitam colisões', () => {
+      it('marca vazia não colide com marca preenchida', () => {
+        expect(brandKey(null, 'Organizer Kit')).not.toBe(
+          brandKey('Organizer', 'Kit'),
+        );
+        expect(brandKey(null, 'Organizer Kit')).toBe('|organizer kit');
+        expect(brandKey('Organizer', 'Kit')).toBe('organizer|kit');
+      });
+
+      it('categoria vazia não colide com categoria preenchida', () => {
+        const empty = sut.buildKey(
+          { name: 'Garden Kit', brand: null, category: null },
+          NAME_CATEGORY,
+        );
+        const filled = sut.buildKey(
+          { name: 'Kit', brand: null, category: 'Garden' },
+          NAME_CATEGORY,
+        );
+        expect(empty).not.toBe(filled);
+      });
+
+      it('NAME_BRAND_CATEGORY: marca e categoria trocadas de lugar não colidem', () => {
+        expect(
+          sut.buildKey(
+            { name: 'Kit', brand: 'Casa', category: null },
+            NAME_BRAND_CATEGORY,
+          ),
+        ).not.toBe(
+          sut.buildKey(
+            { name: 'Kit', brand: null, category: 'Casa' },
+            NAME_BRAND_CATEGORY,
+          ),
+        );
+      });
     });
 
     it('une as variações reais do arquivo de carga', () => {
-      expect(sut.buildKey('Apple', 'iPhone 15  Pro')).toBe(
-        sut.buildKey('Apple', 'iPhone 15 Pro'),
+      expect(brandKey('Apple', 'iPhone 15  Pro')).toBe(
+        brandKey('Apple', 'iPhone 15 Pro'),
       );
-      expect(sut.buildKey('Canon', 'Câmera Canon EOS R6')).toBe(
-        sut.buildKey('Canon', 'Camera Canon EOS R6'),
+      expect(brandKey('Canon', 'Câmera Canon EOS R6')).toBe(
+        brandKey('Canon', 'Camera Canon EOS R6'),
       );
-      expect(sut.buildKey('Apple', 'iPad Pro 12.9"')).toBe(
-        sut.buildKey('APPLE', "iPad Pro 12.9''"),
+      expect(brandKey('Apple', 'iPad Pro 12.9"')).toBe(
+        brandKey('APPLE', "iPad Pro 12.9''"),
       );
-      expect(sut.buildKey(' Apple ', 'iPad Pro 12.9')).toBe(
-        sut.buildKey('Apple', 'iPad Pro 12.9"'),
-      );
-    });
-
-    it.each([
-      ['null', null],
-      ['undefined', undefined],
-      ['vazia', ''],
-      ['só espaços', '  '],
-    ])('usa |<nome> quando a marca é %s', (_label, brand) => {
-      expect(sut.buildKey(brand, 'Cable Organizer Kit')).toBe(
-        '|cable organizer kit',
-      );
-    });
-
-    it('marca vazia não colide com marca preenchida', () => {
-      expect(sut.buildKey(null, 'Organizer Kit')).not.toBe(
-        sut.buildKey('Organizer', 'Kit'),
-      );
-      expect(sut.buildKey(null, 'Organizer Kit')).toBe('|organizer kit');
-      expect(sut.buildKey('Organizer', 'Kit')).toBe('organizer|kit');
-    });
-
-    it('categoria não entra na chave (buildKey só recebe marca e nome)', () => {
-      // Photography × Photo para o mesmo produto: a chave é a mesma porque a
-      // categoria nem é argumento.
-      expect(sut.buildKey.length).toBe(2);
-      expect(sut.buildKey('Canon', 'Camera Canon EOS R6')).toBe(
-        'canon|camera canon eos r6',
+      expect(brandKey(' Apple ', 'iPad Pro 12.9')).toBe(
+        brandKey('Apple', 'iPad Pro 12.9"'),
       );
     });
 
     it("usa levis na chave de Levi's (o dado original não muda)", () => {
       const brand = "Levi's";
 
-      expect(sut.buildKey(brand, 'Jeans 501')).toBe('levis|jeans 501');
+      expect(brandKey(brand, 'Jeans 501')).toBe('levis|jeans 501');
       expect(brand).toBe("Levi's");
     });
 
     it('gera chave determinística para marca com tentativa de SQL injection', () => {
-      const key = sut.buildKey("TestBrand'; SELECT 1; --", 'Test Product');
+      const key = brandKey("TestBrand'; SELECT 1; --", 'Test Product');
 
       expect(key).toBe('testbrand; select 1; --|test product');
-      expect(sut.buildKey("TestBrand'; SELECT 1; --", 'Test Product')).toBe(
-        key,
+      expect(brandKey("TestBrand'; SELECT 1; --", 'Test Product')).toBe(key);
+    });
+
+    it('gera chave determinística para categoria com tentativa de SQL injection', () => {
+      const fields = {
+        name: 'Test Product',
+        brand: null,
+        category: "x'; SELECT 1; --",
+      };
+
+      expect(sut.buildKey(fields, NAME_CATEGORY)).toBe(
+        'x; select 1; --|test product',
       );
+      expect(fields.category).toBe("x'; SELECT 1; --");
     });
 
     it('não une produtos diferentes com nomes parecidos', () => {
-      expect(sut.buildKey('Dyson', 'Vacuum Cleaner Upright')).not.toBe(
-        sut.buildKey('Dyson', 'Vacuum Cleaner Cordless'),
+      expect(brandKey('Dyson', 'Vacuum Cleaner Upright')).not.toBe(
+        brandKey('Dyson', 'Vacuum Cleaner Cordless'),
       );
     });
 
     it('não une marcas diferentes com o mesmo nome', () => {
-      expect(sut.buildKey('Samsung', 'Smart TV 55"')).not.toBe(
-        sut.buildKey('LG', 'Smart TV 55"'),
+      expect(brandKey('Samsung', 'Smart TV 55"')).not.toBe(
+        brandKey('LG', 'Smart TV 55"'),
       );
     });
 
     it('limitação conhecida (D-016): traduções NÃO são unidas pela chave', () => {
       // São o mesmo produto, mas a regra aceita criar dois produtos em vez de
       // arriscar unir produtos diferentes. Ver docs/decisions.md D-016.
-      expect(sut.buildKey('TP-Link', 'Roteador WiFi 6 TP-Link')).not.toBe(
-        sut.buildKey('TP-Link', 'Router WiFi 6 TP-Link'),
+      expect(brandKey('TP-Link', 'Roteador WiFi 6 TP-Link')).not.toBe(
+        brandKey('TP-Link', 'Router WiFi 6 TP-Link'),
       );
-      expect(sut.buildKey('AMD', 'Processador AMD Ryzen 9 7950X')).not.toBe(
-        sut.buildKey('AMD', 'Processor AMD Ryzen 9 7950X'),
+      expect(brandKey('AMD', 'Processador AMD Ryzen 9 7950X')).not.toBe(
+        brandKey('AMD', 'Processor AMD Ryzen 9 7950X'),
       );
     });
   });

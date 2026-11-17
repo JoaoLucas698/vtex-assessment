@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
-  ImportCatalogOutput,
   ImportItemOutcome,
   ImportItemReport,
+  ImportReport,
   ImportTotals,
   InvalidCatalogItem,
   ValidCatalogItem,
@@ -56,7 +56,7 @@ export class ImportReportService {
     read: number,
     invalid: InvalidCatalogItem[],
     processed: ImportItemReport[],
-  ): ImportCatalogOutput {
+  ): ImportReport {
     const items = [
       ...invalid.map((item) => this.invalidItem(item)),
       ...processed,
