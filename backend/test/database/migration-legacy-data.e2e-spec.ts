@@ -1,3 +1,4 @@
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 import {
   insertLegacyLink,
   insertLegacyProduct,
@@ -206,7 +207,11 @@ describe('Migration consolidate_catalog com dados legados sintéticos', () => {
 
     // d2 era o maior id (removido). O próximo produto precisa passar dele.
     const created = await prisma.product.create({
-      data: { name: 'Depois', normalizedKey: '|depois' },
+      data: {
+        name: 'Depois',
+        normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
+        normalizedKey: '|depois',
+      },
     });
 
     expect(created.id).toBe(ids.d2 + 1);

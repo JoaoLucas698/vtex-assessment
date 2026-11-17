@@ -104,7 +104,7 @@ async function expectNoDuplicates(prisma: PrismaService): Promise<void> {
   const [repeatedKeys, repeatedProductSeller, repeatedExternalIds] =
     await Promise.all([
       prisma.product.groupBy({
-        by: ['normalizedKey'],
+        by: ['normalizationTypeId', 'normalizedKey'],
         _count: { _all: true },
         having: { normalizedKey: { _count: { gt: 1 } } },
       }),
