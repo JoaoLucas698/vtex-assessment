@@ -6,6 +6,7 @@ import {
   ImportTotals,
   MatchedBy,
 } from '@modules/catalog-import/schemas/catalog-import.types';
+import { NormalizationTypeCode } from '@modules/normalization-types/schemas/normalization-type.types';
 
 export class ImportTotalsResponseDto {
   @ApiProperty({
@@ -144,6 +145,15 @@ export class ImportItemResponseDto {
 
 export class ImportCatalogResponseDto {
   @ApiProperty({
+    description:
+      'Tipo de normalização usado na importação: o enviado em `normalizationType` ou o padrão `NAME_BRAND`. Define a chave dos produtos criados.',
+    enum: NormalizationTypeCode,
+    enumName: 'NormalizationTypeCode',
+    example: NormalizationTypeCode.NAME_BRAND,
+  })
+  normalizationType!: NormalizationTypeCode;
+
+  @ApiProperty({
     description: 'Totais por tipo de resultado.',
     type: ImportTotalsResponseDto,
   })
@@ -157,6 +167,7 @@ export class ImportCatalogResponseDto {
 
   static from(output: ImportCatalogOutput): ImportCatalogResponseDto {
     const dto = new ImportCatalogResponseDto();
+    dto.normalizationType = output.normalizationType;
     dto.totals = ImportTotalsResponseDto.from(output.totals);
     dto.items = output.items.map((item) => ImportItemResponseDto.from(item));
     return dto;

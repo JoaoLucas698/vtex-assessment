@@ -6,11 +6,13 @@ import {
   MatchedBy,
   type ImportCatalogOutput,
 } from '@modules/catalog-import/schemas/catalog-import.types';
+import { NormalizationTypeCode } from '@modules/normalization-types/schemas/normalization-type.types';
 import { CommonErrorCode } from '@shared/errors/error-codes';
 import type { ErrorResponseBody } from '@shared/errors/error-response.types';
 
 /** Relatório de exemplo da resposta 200 de `POST /api/catalog-import`. */
 export const IMPORT_CATALOG_REPORT_EXAMPLE = {
+  normalizationType: NormalizationTypeCode.NAME_BRAND,
   totals: {
     read: 4,
     invalid: 1,
@@ -87,6 +89,14 @@ export const IMPORT_CATALOG_BAD_REQUEST_EXAMPLES = {
       statusCode: HttpStatus.BAD_REQUEST,
       code: CatalogImportErrorCode.EMPTY_FILE,
       message: 'O arquivo não tem nenhum item para importar.',
+    },
+  },
+  [CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE]: {
+    value: {
+      statusCode: HttpStatus.BAD_REQUEST,
+      code: CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE,
+      message:
+        'Tipo de normalização inválido: "NAME_COLOR". Use um dos tipos de GET /api/normalization-types.',
     },
   },
 } satisfies Partial<

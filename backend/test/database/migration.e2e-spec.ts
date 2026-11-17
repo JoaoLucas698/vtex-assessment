@@ -1,3 +1,4 @@
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 import {
   hashFile,
   LegacyDatabase,
@@ -103,7 +104,11 @@ describe('Migration consolidate_catalog no banco fornecido', () => {
     const prisma = database.client();
 
     const created = await prisma.product.create({
-      data: { name: 'Novo', normalizedKey: '|novo' },
+      data: {
+        name: 'Novo',
+        normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
+        normalizedKey: '|novo',
+      },
     });
 
     expect(created.id).toBe(ORIGINAL_LAST_ID + 1);

@@ -29,6 +29,9 @@ const CARGA_PATH = resolve(
   '../../../../../database/fixtures/carga.json',
 );
 
+/** Regra padrão da importação (`NAME_BRAND`), a usada nos números de `docs/context.md` §8. */
+const NAME_BRAND_RULE = { includesBrand: true, includesCategory: false };
+
 const isBlank = (value: string | null | undefined): boolean =>
   !value || !value.trim();
 
@@ -81,7 +84,10 @@ describe('Simulação do matching com database/fixtures/carga.json (catálogo va
     }
     const sellerName = item.SellerName as string;
     const externalId = item.Id as string;
-    const key = normalizer.buildKey(item.Brand, item.Name as string);
+    const key = normalizer.buildKey(
+      { name: item.Name as string, brand: item.Brand, category: item.Category },
+      NAME_BRAND_RULE,
+    );
 
     const productByKey = productsByKey.get(key) ?? null;
     const decision = matching.decide({

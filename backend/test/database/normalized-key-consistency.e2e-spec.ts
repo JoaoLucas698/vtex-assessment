@@ -8,6 +8,8 @@ import {
 const REAL_PRODUCTS = 975;
 const LATIN_1_SUPPLEMENT_START = 0xc0;
 const LATIN_EXTENDED_A_END = 0x17f;
+/** O backfill da migration gera chaves da regra `NAME_BRAND` (D-019, D-111). */
+const NAME_BRAND_RULE = { includesBrand: true, includesCategory: false };
 
 function hex(codePoint: number): string {
   return codePoint.toString(16).toUpperCase().padStart(4, '0');
@@ -94,7 +96,7 @@ describe('Consistência do normalizedKey: SQL da migration × ProductNormalizerS
         name: p.name,
         brand: p.brand,
         sql: p.normalizedKey,
-        ts: normalizer.buildKey(p.brand, p.name),
+        ts: normalizer.buildKey(p, NAME_BRAND_RULE),
       }))
       .filter((p) => p.sql !== p.ts);
 
@@ -112,7 +114,7 @@ describe('Consistência do normalizedKey: SQL da migration × ProductNormalizerS
     expect(real).toHaveLength(REAL_PRODUCTS);
     for (const product of real) {
       expect(product.normalizedKey).toBe(
-        normalizer.buildKey(product.brand, product.name),
+        normalizer.buildKey(product, NAME_BRAND_RULE),
       );
     }
   });

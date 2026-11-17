@@ -6,13 +6,15 @@ import {
 } from '@modules/catalog-import/schemas/catalog-import.errors';
 import {
   ImportCatalogInput,
-  ImportCatalogOutput,
   ImportItemOutcome,
   ImportItemReport,
+  ImportReport,
   InvalidCatalogItem,
   MatchDecision,
   MatchDecisionType,
   MatchedBy,
+  NormalizationRule,
+  ProductKeyFields,
   ValidCatalogItem,
 } from '@modules/catalog-import/schemas/catalog-import.types';
 import { CatalogFileParserService } from '@modules/catalog-import/services/catalog-file-parser.service';
@@ -20,6 +22,11 @@ import { ImportReportService } from '@modules/catalog-import/services/import-rep
 import { ProductMatchingService } from '@modules/catalog-import/services/product-matching.service';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
 import { ImportCatalogUseCase } from '@modules/catalog-import/usecases/import-catalog.usecase';
+import { NormalizationTypeRepository } from '@modules/normalization-types/repositories/normalization-type.repository';
+import {
+  NormalizationTypeCode,
+  NormalizationTypeRecord,
+} from '@modules/normalization-types/schemas/normalization-type.types';
 import { ProductRepository } from '@modules/products/repositories/product.repository';
 import type { ProductRecord } from '@modules/products/schemas/product.types';
 import { SellerProductRepository } from '@modules/sellers/repositories/seller-product.repository';
@@ -32,7 +39,7 @@ const FILE_CONTENT = Buffer.from('[...]');
 const INPUT: ImportCatalogInput = {
   file: { buffer: FILE_CONTENT, size: FILE_CONTENT.length },
 };
-const REPORT: ImportCatalogOutput = {
+const REPORT: ImportReport = {
   totals: {
     read: 0,
     invalid: 0,
@@ -43,6 +50,48 @@ const REPORT: ImportCatalogOutput = {
   },
   items: [],
 };
+
+/** Tipos cadastrados pela migration `add_normalization_types` (D-110). */
+const TYPES = {
+  [NormalizationTypeCode.NAME_BRAND]: {
+    id: 1,
+    code: NormalizationTypeCode.NAME_BRAND,
+    description: 'Nome + marca',
+    includesBrand: true,
+    includesCategory: false,
+  },
+  [NormalizationTypeCode.NAME_CATEGORY]: {
+    id: 2,
+    code: NormalizationTypeCode.NAME_CATEGORY,
+    description: 'Nome + categoria',
+    includesBrand: false,
+    includesCategory: true,
+  },
+  [NormalizationTypeCode.NAME_BRAND_CATEGORY]: {
+    id: 3,
+    code: NormalizationTypeCode.NAME_BRAND_CATEGORY,
+    description: 'Nome + marca + categoria',
+    includesBrand: true,
+    includesCategory: true,
+  },
+} satisfies Record<NormalizationTypeCode, NormalizationTypeRecord>;
+const NAME_BRAND = TYPES[NormalizationTypeCode.NAME_BRAND];
+const NAME_CATEGORY = TYPES[NormalizationTypeCode.NAME_CATEGORY];
+const NAME_BRAND_CATEGORY = TYPES[NormalizationTypeCode.NAME_BRAND_CATEGORY];
+
+/**
+ * Chave fake usada pelo mock do normalizer: diferente para cada regra, para os
+ * testes enxergarem qual chave foi usada em cada busca.
+ */
+function fakeKey(fields: ProductKeyFields, rule: NormalizationRule): string {
+  return [
+    rule.includesBrand ? `b=${fields.brand ?? ''}` : null,
+    rule.includesCategory ? `c=${fields.category ?? ''}` : null,
+    `n=${fields.name}`,
+  ]
+    .filter((part) => part !== null)
+    .join(';');
+}
 
 const CREATE: MatchDecision = {
   type: MatchDecisionType.CREATE_PRODUCT,
@@ -78,12 +127,16 @@ function seller(id: number, sellerName: string): Seller {
   return { id, sellerName, createdAt: NOW, updatedAt: NOW };
 }
 
-function product(id: number): ProductRecord {
+function product(
+  id: number,
+  normalizationTypeId = NAME_BRAND.id,
+): ProductRecord {
   return {
     id,
     name: 'Produto',
     brand: null,
     category: null,
+    normalizationTypeId,
     normalizedKey: 'k',
   };
 }
@@ -114,6 +167,7 @@ describe('ImportCatalogUseCase', () => {
   let sellerRepository: DeepMockProxy<SellerRepository>;
   let sellerProductRepository: DeepMockProxy<SellerProductRepository>;
   let productRepository: DeepMockProxy<ProductRepository>;
+  let normalizationTypeRepository: DeepMockProxy<NormalizationTypeRepository>;
   let tx: DeepMockProxy<Prisma.TransactionClient>;
 
   /** Configura o parser para devolver estes itens. */
@@ -146,9 +200,18 @@ describe('ImportCatalogUseCase', () => {
     sellerRepository = mockDeep<SellerRepository>();
     sellerProductRepository = mockDeep<SellerProductRepository>();
     productRepository = mockDeep<ProductRepository>();
+    normalizationTypeRepository = mockDeep<NormalizationTypeRepository>();
     tx = mockDeep<Prisma.TransactionClient>();
 
     transactionManager.run.mockImplementation((work) => work(tx));
+    normalizationTypeRepository.findByCode.mockImplementation((code) =>
+      Promise.resolve(
+        Object.values<NormalizationTypeRecord>(TYPES).find(
+          (type) => type.code === code,
+        ) ?? null,
+      ),
+    );
+    normalizationTypeRepository.findAll.mockResolvedValue(Object.values(TYPES));
     report.build.mockReturnValue(REPORT);
     report.processedItem.mockImplementation(
       (processed, details): ImportItemReport => ({
@@ -169,6 +232,7 @@ describe('ImportCatalogUseCase', () => {
       sellerRepository,
       sellerProductRepository,
       productRepository,
+      normalizationTypeRepository,
     );
   });
 
@@ -210,7 +274,7 @@ describe('ImportCatalogUseCase', () => {
       sellerRepository.create.mockResolvedValue(seller(1, 'MegaStore'));
       sellerProductRepository.findBySellerAndExternalId.mockResolvedValue(null);
       sellerProductRepository.findBySellerAndProduct.mockResolvedValue(null);
-      productRepository.findByNormalizedKey.mockResolvedValue(null);
+      productRepository.findByTypeAndKey.mockResolvedValue(null);
       productRepository.create.mockResolvedValue(product(10));
       sellerProductRepository.create.mockResolvedValue(link());
       normalizer.buildKey.mockReturnValue('samsung|smartphone galaxy s23');
@@ -224,12 +288,14 @@ describe('ImportCatalogUseCase', () => {
       const result = await sut.execute(INPUT);
 
       expect(result.isSuccess).toBe(true);
-      if (result.isSuccess) expect(result.value).toBe(REPORT);
+      if (result.isSuccess) {
+        expect(result.value).toEqual({
+          normalizationType: NormalizationTypeCode.NAME_BRAND,
+          ...REPORT,
+        });
+      }
       expect(transactionManager.run).toHaveBeenCalledTimes(1);
-      expect(normalizer.buildKey).toHaveBeenCalledWith(
-        'Samsung',
-        'Smartphone Galaxy S23',
-      );
+      expect(normalizer.buildKey).toHaveBeenCalledWith(item(), NAME_BRAND);
       expect(matching.decide).toHaveBeenCalledWith({
         linkByExternalId: null,
         productByKey: null,
@@ -240,6 +306,7 @@ describe('ImportCatalogUseCase', () => {
           name: 'Smartphone Galaxy S23',
           brand: 'Samsung',
           category: 'Electronics',
+          normalizationTypeId: NAME_BRAND.id,
           normalizedKey: 'samsung|smartphone galaxy s23',
         },
         tx,
@@ -272,7 +339,7 @@ describe('ImportCatalogUseCase', () => {
 
     it('liga a produto existente pela chave normalizada (normalized_key) sem criar produto', async () => {
       givenFile([item({ name: 'Smartphone  Galaxy S23' })]);
-      productRepository.findByNormalizedKey.mockResolvedValue(product(7));
+      productRepository.findByTypeAndKey.mockResolvedValue(product(7));
       matching.decide.mockReturnValue({
         type: MatchDecisionType.LINK_EXISTING,
         productId: 7,
@@ -283,7 +350,8 @@ describe('ImportCatalogUseCase', () => {
       const result = await sut.execute(INPUT);
 
       expect(result.isSuccess).toBe(true);
-      expect(productRepository.findByNormalizedKey).toHaveBeenCalledWith(
+      expect(productRepository.findByTypeAndKey).toHaveBeenCalledWith(
+        NAME_BRAND.id,
         'samsung|smartphone galaxy s23',
         tx,
       );
@@ -355,7 +423,7 @@ describe('ImportCatalogUseCase', () => {
         matchedBy: MatchedBy.LEGACY,
         reason: null,
       });
-      expect(productRepository.findByNormalizedKey).not.toHaveBeenCalled();
+      expect(productRepository.findByTypeAndKey).not.toHaveBeenCalled();
       expect(productRepository.create).not.toHaveBeenCalled();
       expect(sellerProductRepository.create).not.toHaveBeenCalled();
       expect(sellerRepository.create).not.toHaveBeenCalled();
@@ -418,7 +486,7 @@ describe('ImportCatalogUseCase', () => {
     it('mesmo produto enviado de novo pelo mesmo seller com outro Id: nada é gravado e vale o primeiro', async () => {
       const kept = link({ id: 100, productId: 10, externalId: 'id-1' });
       givenFile([item({ externalId: 'id-2' })]);
-      productRepository.findByNormalizedKey.mockResolvedValue(product(10));
+      productRepository.findByTypeAndKey.mockResolvedValue(product(10));
       sellerProductRepository.findBySellerAndProduct.mockResolvedValue(kept);
       matching.decide.mockReturnValue({
         type: MatchDecisionType.DUPLICATE_SAME_SELLER,
@@ -451,7 +519,7 @@ describe('ImportCatalogUseCase', () => {
 
     it('duplicado contra vínculo legado sem externalId explica no motivo', async () => {
       givenFile([item()]);
-      productRepository.findByNormalizedKey.mockResolvedValue(product(10));
+      productRepository.findByTypeAndKey.mockResolvedValue(product(10));
       sellerProductRepository.findBySellerAndProduct.mockResolvedValue(
         link({ externalId: null, matchedBy: MatchedBy.LEGACY }),
       );
@@ -478,7 +546,10 @@ describe('ImportCatalogUseCase', () => {
       sellerRepository.create
         .mockResolvedValueOnce(seller(1, 'MegaStore'))
         .mockResolvedValueOnce(seller(2, 'FitnessCenter'));
-      productRepository.findByNormalizedKey
+      // Item 0: nenhum produto nos três tipos. Item 1: acha o criado pelo item 0.
+      productRepository.findByTypeAndKey
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(product(10));
       matching.decide.mockReturnValueOnce(CREATE).mockReturnValueOnce({
@@ -499,7 +570,7 @@ describe('ImportCatalogUseCase', () => {
       );
       expect(productRepository.create).toHaveBeenCalledTimes(1);
       expect(productRepository.create.mock.invocationCallOrder[0]).toBeLessThan(
-        productRepository.findByNormalizedKey.mock.invocationCallOrder[1],
+        productRepository.findByTypeAndKey.mock.invocationCallOrder[3],
       );
       expect(report.build).toHaveBeenCalledWith(
         2,
@@ -590,14 +661,19 @@ describe('ImportCatalogUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(normalizer.buildKey).toHaveBeenCalledWith(
-        null,
-        'Cable Organizer Kit',
+        expect.objectContaining({
+          name: 'Cable Organizer Kit',
+          brand: null,
+          category: null,
+        }),
+        NAME_BRAND,
       );
       expect(productRepository.create).toHaveBeenCalledWith(
         {
           name: 'Cable Organizer Kit',
           brand: null,
           category: null,
+          normalizationTypeId: NAME_BRAND.id,
           normalizedKey: '|cable organizer kit',
         },
         tx,
@@ -618,8 +694,8 @@ describe('ImportCatalogUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(normalizer.buildKey).toHaveBeenCalledWith(
-        malicious,
-        'Smartphone Galaxy S23',
+        expect.objectContaining({ brand: malicious }),
+        NAME_BRAND,
       );
       expect(productRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ brand: malicious }),
@@ -661,6 +737,7 @@ describe('ImportCatalogUseCase', () => {
           name: ' Jeans 501  Original ',
           brand: "Levi's",
           category: null,
+          normalizationTypeId: NAME_BRAND.id,
           normalizedKey: 'levis|jeans 501 original',
         },
         tx,
@@ -708,6 +785,335 @@ describe('ImportCatalogUseCase', () => {
       ).toHaveBeenCalledWith(8, item().externalId, tx);
       expect(sellerProductRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ sellerId: 8 }),
+        tx,
+      );
+    });
+  });
+  describe('tipo de normalização', () => {
+    beforeEach(() => {
+      sellerRepository.findByName.mockResolvedValue(seller(1, 'MegaStore'));
+      sellerProductRepository.findBySellerAndExternalId.mockResolvedValue(null);
+      sellerProductRepository.findBySellerAndProduct.mockResolvedValue(null);
+      productRepository.findByTypeAndKey.mockResolvedValue(null);
+      productRepository.create.mockResolvedValue(product(10));
+      sellerProductRepository.create.mockResolvedValue(link());
+      normalizer.buildKey.mockImplementation(fakeKey);
+    });
+
+    /** Produto devolvido pela busca só para este tipo; os outros não acham nada. */
+    function givenProductInType(found: Partial<Record<number, number>>): void {
+      productRepository.findByTypeAndKey.mockImplementation((typeId) => {
+        const productId = found[typeId];
+        return Promise.resolve(
+          productId === undefined ? null : product(productId, typeId),
+        );
+      });
+    }
+
+    it('usa NAME_BRAND quando o campo não vem e devolve o código usado', async () => {
+      givenFile([item()]);
+      matching.decide.mockReturnValue(CREATE);
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.CREATED);
+
+      const result = await sut.execute(INPUT);
+
+      expect(result.isSuccess).toBe(true);
+      if (result.isSuccess) {
+        expect(result.value.normalizationType).toBe(
+          NormalizationTypeCode.NAME_BRAND,
+        );
+      }
+      expect(normalizationTypeRepository.findByCode).toHaveBeenCalledWith(
+        NormalizationTypeCode.NAME_BRAND,
+      );
+      expect(productRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          normalizationTypeId: NAME_BRAND.id,
+          normalizedKey: fakeKey(item(), NAME_BRAND),
+        }),
+        tx,
+      );
+    });
+
+    it('trata normalizationType null como ausente (NAME_BRAND)', async () => {
+      givenFile([item()]);
+      matching.decide.mockReturnValue(CREATE);
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.CREATED);
+
+      const result = await sut.execute({ ...INPUT, normalizationType: null });
+
+      expect(result.isSuccess).toBe(true);
+      if (result.isSuccess) {
+        expect(result.value.normalizationType).toBe(
+          NormalizationTypeCode.NAME_BRAND,
+        );
+      }
+    });
+
+    it.each([
+      ['código desconhecido', 'NAME_COLOR'],
+      ['texto vazio', ''],
+      ['caixa diferente', 'name_brand'],
+      ['tentativa de SQL injection', "x'; SELECT 1; --"],
+    ])(
+      'retorna INVALID_NORMALIZATION_TYPE para %s sem consultar o banco, sem parse e sem transação',
+      async (_label, code) => {
+        const result = await sut.execute({ ...INPUT, normalizationType: code });
+
+        expect(result.isFailure).toBe(true);
+        if (result.isFailure) {
+          expect(result.error.code).toBe(
+            CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE,
+          );
+          expect(result.error.message).toContain(code);
+        }
+        expect(normalizationTypeRepository.findByCode).not.toHaveBeenCalled();
+        expect(parser.parse).not.toHaveBeenCalled();
+        expect(transactionManager.run).not.toHaveBeenCalled();
+      },
+    );
+
+    it('retorna INVALID_NORMALIZATION_TYPE quando o código do enum não está cadastrado no banco', async () => {
+      normalizationTypeRepository.findByCode.mockResolvedValue(null);
+
+      const result = await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(result.isFailure).toBe(true);
+      if (result.isFailure) {
+        expect(result.error.code).toBe(
+          CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE,
+        );
+      }
+      expect(parser.parse).not.toHaveBeenCalled();
+      expect(transactionManager.run).not.toHaveBeenCalled();
+    });
+
+    it('valida o arquivo antes do tipo: sem arquivo é FILE_REQUIRED mesmo com tipo inválido', async () => {
+      const result = await sut.execute({
+        file: undefined,
+        normalizationType: 'NAME_COLOR',
+      });
+
+      expect(result.isFailure).toBe(true);
+      if (result.isFailure) {
+        expect(result.error.code).toBe(CatalogImportErrorCode.FILE_REQUIRED);
+      }
+    });
+
+    it('cria o produto com o id e a chave do tipo escolhido', async () => {
+      givenFile([item()]);
+      matching.decide.mockReturnValue(CREATE);
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.CREATED);
+
+      const result = await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(result.isSuccess).toBe(true);
+      if (result.isSuccess) {
+        expect(result.value.normalizationType).toBe(
+          NormalizationTypeCode.NAME_CATEGORY,
+        );
+      }
+      expect(productRepository.create).toHaveBeenCalledWith(
+        {
+          name: 'Smartphone Galaxy S23',
+          brand: 'Samsung',
+          category: 'Electronics',
+          normalizationTypeId: NAME_CATEGORY.id,
+          normalizedKey: fakeKey(item(), NAME_CATEGORY),
+        },
+        tx,
+      );
+    });
+
+    it('busca o produto pela regra de cada tipo: o escolhido primeiro e depois os demais por id', async () => {
+      givenFile([item()]);
+      matching.decide.mockReturnValue(CREATE);
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.CREATED);
+
+      await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_BRAND_CATEGORY,
+      });
+
+      expect(
+        productRepository.findByTypeAndKey.mock.calls.map(([typeId, key]) => [
+          typeId,
+          key,
+        ]),
+      ).toEqual([
+        [NAME_BRAND_CATEGORY.id, fakeKey(item(), NAME_BRAND_CATEGORY)],
+        [NAME_BRAND.id, fakeKey(item(), NAME_BRAND)],
+        [NAME_CATEGORY.id, fakeKey(item(), NAME_CATEGORY)],
+      ]);
+      expect(productRepository.findByTypeAndKey).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(String),
+        tx,
+      );
+    });
+
+    it('liga a um produto de outro tipo quando o item bate pela regra daquele produto', async () => {
+      givenFile([item()]);
+      givenProductInType({ [NAME_BRAND.id]: 7 });
+      matching.decide.mockReturnValue({
+        type: MatchDecisionType.LINK_EXISTING,
+        productId: 7,
+        matchedBy: MatchedBy.NORMALIZED_KEY,
+      });
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.LINKED_EXISTING);
+
+      const result = await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(productRepository.findByTypeAndKey).toHaveBeenNthCalledWith(
+        1,
+        NAME_CATEGORY.id,
+        fakeKey(item(), NAME_CATEGORY),
+        tx,
+      );
+      expect(productRepository.findByTypeAndKey).toHaveBeenNthCalledWith(
+        2,
+        NAME_BRAND.id,
+        fakeKey(item(), NAME_BRAND),
+        tx,
+      );
+      expect(productRepository.findByTypeAndKey).toHaveBeenCalledTimes(2);
+      expect(matching.decide).toHaveBeenCalledWith({
+        linkByExternalId: null,
+        productByKey: product(7, NAME_BRAND.id),
+        sellerLinkToProduct: null,
+      });
+      expect(productRepository.create).not.toHaveBeenCalled();
+      expect(sellerProductRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          productId: 7,
+          matchedBy: MatchedBy.NORMALIZED_KEY,
+        }),
+        tx,
+      );
+    });
+
+    it('com produtos em mais de um tipo, vence o do tipo escolhido', async () => {
+      givenFile([item()]);
+      givenProductInType({ [NAME_BRAND.id]: 7, [NAME_CATEGORY.id]: 8 });
+      matching.decide.mockReturnValue({
+        type: MatchDecisionType.LINK_EXISTING,
+        productId: 8,
+        matchedBy: MatchedBy.NORMALIZED_KEY,
+      });
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.LINKED_EXISTING);
+
+      await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(productRepository.findByTypeAndKey).toHaveBeenCalledTimes(1);
+      expect(matching.decide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          productByKey: product(8, NAME_CATEGORY.id),
+        }),
+      );
+    });
+
+    it('com NAME_BRAND (padrão), um produto NAME_BRAND vence um NAME_CATEGORY', async () => {
+      givenFile([item()]);
+      givenProductInType({ [NAME_BRAND.id]: 7, [NAME_CATEGORY.id]: 8 });
+      matching.decide.mockReturnValue({
+        type: MatchDecisionType.LINK_EXISTING,
+        productId: 7,
+        matchedBy: MatchedBy.NORMALIZED_KEY,
+      });
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.LINKED_EXISTING);
+
+      await sut.execute(INPUT);
+
+      expect(matching.decide).toHaveBeenCalledWith(
+        expect.objectContaining({ productByKey: product(7, NAME_BRAND.id) }),
+      );
+    });
+
+    it('carrega os tipos uma vez por importação, dentro da transação', async () => {
+      givenFile([
+        item({ index: 0 }),
+        item({ index: 1, externalId: 'b-2', name: 'Notebook Dell XPS 13' }),
+      ]);
+      matching.decide.mockReturnValue(CREATE);
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.CREATED);
+
+      await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(normalizationTypeRepository.findAll).toHaveBeenCalledTimes(1);
+      expect(normalizationTypeRepository.findAll).toHaveBeenCalledWith(tx);
+      expect(normalizationTypeRepository.findByCode).toHaveBeenCalledTimes(1);
+    });
+
+    it('reimportar com o mesmo tipo é idempotente: o vínculo pelo externalId já existe e nada é criado', async () => {
+      const existing = link({ id: 55, productId: 10 });
+      givenFile([item()]);
+      sellerProductRepository.findBySellerAndExternalId.mockResolvedValue(
+        existing,
+      );
+      sellerProductRepository.updateSellerData.mockResolvedValue(existing);
+      matching.decide.mockReturnValue({
+        type: MatchDecisionType.ALREADY_LINKED,
+        sellerProductId: 55,
+        productId: 10,
+      });
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.ALREADY_LINKED);
+
+      const result = await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(productRepository.findByTypeAndKey).not.toHaveBeenCalled();
+      expect(productRepository.create).not.toHaveBeenCalled();
+      expect(sellerProductRepository.create).not.toHaveBeenCalled();
+      expect(reportedDetails(0)).toMatchObject({
+        outcome: ImportItemOutcome.ALREADY_LINKED,
+        productId: 10,
+      });
+    });
+
+    it('grava a categoria com tentativa de SQL injection com o texto exato', async () => {
+      const malicious = "x'; SELECT 1; --";
+      givenFile([item({ category: malicious })]);
+      matching.decide.mockReturnValue(CREATE);
+      matching.toOutcome.mockReturnValue(ImportItemOutcome.CREATED);
+
+      const result = await sut.execute({
+        ...INPUT,
+        normalizationType: NormalizationTypeCode.NAME_CATEGORY,
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(normalizer.buildKey).toHaveBeenCalledWith(
+        expect.objectContaining({ category: malicious }),
+        NAME_CATEGORY,
+      );
+      expect(productRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: malicious,
+          normalizationTypeId: NAME_CATEGORY.id,
+        }),
+        tx,
+      );
+      expect(sellerProductRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ category: malicious }),
         tx,
       );
     });

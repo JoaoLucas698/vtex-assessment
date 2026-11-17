@@ -13,6 +13,7 @@ describe('ProductRepository', () => {
     name: 'Camisa',
     brand: 'Nike',
     category: null,
+    normalizationTypeId: 1,
     normalizedKey: 'nike|camisa',
   };
 
@@ -22,20 +23,29 @@ describe('ProductRepository', () => {
     sut = new ProductRepository(prisma);
   });
 
-  it('findByNormalizedKey usa o tx quando informado', async () => {
+  it('findByTypeAndKey busca pelo único composto (tipo, chave) e usa o tx quando informado', async () => {
     tx.product.findUnique.mockResolvedValue(record as never);
 
-    const found = await sut.findByNormalizedKey('nike|camisa', tx);
+    const found = await sut.findByTypeAndKey(1, 'nike|camisa', tx);
 
     expect(found).toEqual(record);
-    expect(tx.product.findUnique).toHaveBeenCalledTimes(1);
+    expect(tx.product.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          normalizationTypeId_normalizedKey: {
+            normalizationTypeId: 1,
+            normalizedKey: 'nike|camisa',
+          },
+        },
+      }),
+    );
     expect(prisma.product.findUnique).not.toHaveBeenCalled();
   });
 
-  it('findByNormalizedKey usa o PrismaService sem tx e devolve null', async () => {
+  it('findByTypeAndKey usa o PrismaService sem tx e devolve null', async () => {
     prisma.product.findUnique.mockResolvedValue(null);
 
-    const found = await sut.findByNormalizedKey('x|y');
+    const found = await sut.findByTypeAndKey(2, 'x|y');
 
     expect(found).toBeNull();
     expect(prisma.product.findUnique).toHaveBeenCalledTimes(1);
@@ -49,12 +59,17 @@ describe('ProductRepository', () => {
         name: 'Camisa',
         brand: 'Nike',
         category: null,
+        normalizationTypeId: 1,
         normalizedKey: 'nike|camisa',
       },
       tx,
     );
 
-    expect(tx.product.create).toHaveBeenCalledTimes(1);
+    expect(tx.product.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ normalizationTypeId: 1 }) as unknown,
+      }),
+    );
     expect(prisma.product.create).not.toHaveBeenCalled();
   });
 

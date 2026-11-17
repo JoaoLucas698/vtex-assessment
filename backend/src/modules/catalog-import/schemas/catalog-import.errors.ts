@@ -10,12 +10,15 @@ export enum CatalogImportErrorCode {
   INVALID_FILE = 'INVALID_FILE',
   /** O arquivo é um array JSON sem nenhum item (D-081). */
   EMPTY_FILE = 'EMPTY_FILE',
+  /** O campo `normalizationType` não é um tipo de normalização cadastrado (D-113). */
+  INVALID_NORMALIZATION_TYPE = 'INVALID_NORMALIZATION_TYPE',
 }
 
 registerErrorStatuses({
   [CatalogImportErrorCode.FILE_REQUIRED]: HttpStatus.BAD_REQUEST,
   [CatalogImportErrorCode.INVALID_FILE]: HttpStatus.BAD_REQUEST,
   [CatalogImportErrorCode.EMPTY_FILE]: HttpStatus.BAD_REQUEST,
+  [CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE]: HttpStatus.BAD_REQUEST,
 });
 
 export const CatalogImportErrors = {
@@ -35,5 +38,9 @@ export const CatalogImportErrors = {
   emptyFile: (): AppError => ({
     code: CatalogImportErrorCode.EMPTY_FILE,
     message: 'O arquivo não tem nenhum item para importar.',
+  }),
+  invalidNormalizationType: (code: string): AppError => ({
+    code: CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE,
+    message: `Tipo de normalização inválido: "${code}". Use um dos tipos de GET /api/normalization-types.`,
   }),
 };

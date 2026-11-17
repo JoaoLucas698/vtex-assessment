@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { createPrismaAdapter } from '@shared/prisma/create-prisma-adapter';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, readFileSync } from 'node:fs';
+import { copyFileSync, readdirSync, readFileSync } from 'node:fs';
 import {
   createTempDirectory,
   removeTempDirectory,
@@ -18,6 +18,7 @@ const PRISMA_CLI = join(
   'index.js',
 );
 const BASELINE_MIGRATION = '0_init';
+const MIGRATIONS_DIRECTORY = join(BACKEND_ROOT, 'prisma', 'migrations');
 
 /** Banco fornecido, nunca alterado: os testes sempre trabalham numa cópia. */
 export const ORIGINAL_DATABASE_PATH = resolve(
@@ -80,6 +81,35 @@ export class LegacyDatabase {
   async migrate(): Promise<void> {
     await this.disconnect();
     this.runPrisma(['migrate', 'resolve', '--applied', BASELINE_MIGRATION]);
+    this.runPrisma(['migrate', 'deploy']);
+  }
+
+  /**
+   * Aplica as migrations só até `lastMigration` (inclusive), para o teste conferir o banco
+   * antes das migrations seguintes. Cada uma roda com `prisma db execute` e é registrada com
+   * `migrate resolve --applied`; depois, `deployPending()` aplica o resto com `migrate deploy`.
+   */
+  async migrateUpTo(lastMigration: string): Promise<void> {
+    await this.disconnect();
+    this.runPrisma(['migrate', 'resolve', '--applied', BASELINE_MIGRATION]);
+    const names = readdirSync(MIGRATIONS_DIRECTORY, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => name !== BASELINE_MIGRATION)
+      .sort();
+    if (!names.includes(lastMigration)) {
+      throw new Error(`Migration ${lastMigration} não encontrada.`);
+    }
+    for (const name of names.filter((n) => n <= lastMigration)) {
+      const file = join(MIGRATIONS_DIRECTORY, name, 'migration.sql');
+      this.runPrisma(['db', 'execute', '--file', file]);
+      this.runPrisma(['migrate', 'resolve', '--applied', name]);
+    }
+  }
+
+  /** Aplica as migrations ainda pendentes (`migrate deploy`). */
+  async deployPending(): Promise<void> {
+    await this.disconnect();
     this.runPrisma(['migrate', 'deploy']);
   }
 

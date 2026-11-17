@@ -10,6 +10,9 @@ import {
   ImportItemOutcome,
   MatchedBy,
 } from '@modules/catalog-import/schemas/catalog-import.types';
+import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
+import { NORMALIZATION_TYPE_IDS } from '@modules/normalization-types/consts/normalization-types.consts';
+import { NormalizationTypeCode } from '@modules/normalization-types/schemas/normalization-type.types';
 import { configureApp } from '@shared/config/configure-app';
 import { CommonErrorCode } from '@shared/errors/error-codes';
 import { PrismaService } from '@shared/prisma/prisma.service';
@@ -28,10 +31,18 @@ const CARGA_PATH = resolve(
 const ENDPOINT = '/api/catalog-import';
 const MALICIOUS_BRAND = "TestBrand'; SELECT 1; --";
 const LEVIS_BRAND = "Levi's";
+const MALICIOUS_CATEGORY = "x'; SELECT 1; --";
+const NAME_BRAND_ID = NORMALIZATION_TYPE_IDS[NormalizationTypeCode.NAME_BRAND];
+const NAME_CATEGORY_ID =
+  NORMALIZATION_TYPE_IDS[NormalizationTypeCode.NAME_CATEGORY];
+/** Regras dos tipos cadastrados pela migration (D-110). */
+const NAME_BRAND_RULE = { includesBrand: true, includesCategory: false };
+const NAME_CATEGORY_RULE = { includesBrand: false, includesCategory: true };
 /** O Prisma interativo tem timeout padrão de 5 s; o arquivo inteiro roda numa transação. */
 const IMPORT_TIMEOUT_MS = 60_000;
 
 interface ReportBody {
+  normalizationType: string;
   totals: {
     read: number;
     invalid: number;
@@ -76,12 +87,35 @@ async function createApp(databaseUrl: string): Promise<INestApplication> {
   return app;
 }
 
-async function importCarga(app: INestApplication): Promise<ReportBody> {
-  const response = await request(app.getHttpServer() as App)
-    .post(ENDPOINT)
-    .attach('file', CARGA_PATH)
+async function importCarga(
+  app: INestApplication,
+  normalizationType?: NormalizationTypeCode,
+): Promise<ReportBody> {
+  const call = request(app.getHttpServer() as App).post(ENDPOINT);
+  if (normalizationType) call.field('normalizationType', normalizationType);
+  const response = await call.attach('file', CARGA_PATH).expect(200);
+  return response.body as ReportBody;
+}
+
+/** Importa um arquivo montado no próprio teste. */
+async function importItems(
+  app: INestApplication,
+  items: Record<string, unknown>[],
+  normalizationType?: NormalizationTypeCode,
+): Promise<ReportBody> {
+  const call = request(app.getHttpServer() as App).post(ENDPOINT);
+  if (normalizationType) call.field('normalizationType', normalizationType);
+  const response = await call
+    .attach('file', Buffer.from(JSON.stringify(items)), 'carga.json')
     .expect(200);
   return response.body as ReportBody;
+}
+
+async function expectIntegrity(prisma: PrismaService): Promise<void> {
+  const integrity = await prisma.$queryRaw<
+    { integrity_check: string }[]
+  >`PRAGMA integrity_check`;
+  expect(integrity).toEqual([{ integrity_check: 'ok' }]);
 }
 
 async function countAll(prisma: PrismaService): Promise<Counts> {
@@ -104,7 +138,7 @@ async function expectNoDuplicates(prisma: PrismaService): Promise<void> {
   const [repeatedKeys, repeatedProductSeller, repeatedExternalIds] =
     await Promise.all([
       prisma.product.groupBy({
-        by: ['normalizedKey'],
+        by: ['normalizationTypeId', 'normalizedKey'],
         _count: { _all: true },
         having: { normalizedKey: { _count: { gt: 1 } } },
       }),
@@ -149,6 +183,21 @@ describe('Catalog import e2e: catálogo vazio', () => {
   afterAll(async () => {
     await app.close();
     database.cleanup();
+  });
+
+  it('sem normalizationType usa NAME_BRAND e cria todos os produtos com a chave marca|nome', async () => {
+    const normalizer = new ProductNormalizerService();
+    const products = await prisma.product.findMany();
+
+    expect(report.normalizationType).toBe(NormalizationTypeCode.NAME_BRAND);
+    expect(products.every((p) => p.normalizationTypeId === NAME_BRAND_ID)).toBe(
+      true,
+    );
+    expect(
+      products.filter(
+        (p) => p.normalizedKey !== normalizer.buildKey(p, NAME_BRAND_RULE),
+      ),
+    ).toEqual([]);
   });
 
   it('devolve os totais de docs/context.md §8', () => {
@@ -258,10 +307,7 @@ describe('Catalog import e2e: banco fornecido (cópia migrada)', () => {
     expect(links).toHaveLength(1);
     expect(links[0].seller.sellerName).toBe('MegaStore');
     expect(links[0].brand).toBe(MALICIOUS_BRAND);
-    const integrity = await prisma.$queryRaw<
-      { integrity_check: string }[]
-    >`PRAGMA integrity_check`;
-    expect(integrity).toEqual([{ integrity_check: 'ok' }]);
+    await expectIntegrity(prisma);
   });
 
   it("grava Levi's sem alterar a aspa", async () => {
@@ -347,6 +393,24 @@ describe('Catalog import e2e: arquivo rejeitado', () => {
     );
   });
 
+  it.each(['NAME_COLOR', 'name_brand', '', MALICIOUS_CATEGORY])(
+    'responde 400 INVALID_NORMALIZATION_TYPE para normalizationType "%s" e não grava nada',
+    async (normalizationType) => {
+      const response = await request(app.getHttpServer() as App)
+        .post(ENDPOINT)
+        .field('normalizationType', normalizationType)
+        .attach('file', CARGA_PATH)
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        statusCode: 400,
+        code: CatalogImportErrorCode.INVALID_NORMALIZATION_TYPE,
+      });
+      expect(await prisma.product.count()).toBe(0);
+      expect(await prisma.seller.count()).toBe(0);
+    },
+  );
+
   it('responde 400 FILE_REQUIRED sem arquivo', async () => {
     const response = await request(app.getHttpServer() as App)
       .post(ENDPOINT)
@@ -399,5 +463,222 @@ describe('Catalog import e2e: arquivo rejeitado', () => {
     expect(
       await prisma.product.findFirst({ where: { name: 'Produto A' } }),
     ).toMatchObject({ brand: null, normalizedKey: '|produto a' });
+  });
+});
+
+describe('Catalog import e2e: tipo NAME_CATEGORY (catálogo vazio)', () => {
+  const normalizer = new ProductNormalizerService();
+  let app: INestApplication;
+  let database: EmptyDatabase;
+  let prisma: PrismaService;
+  let first: ReportBody;
+  let afterFirst: Counts;
+
+  beforeAll(async () => {
+    database = EmptyDatabase.create();
+    app = await createApp(database.url);
+    prisma = app.get(PrismaService);
+    first = await importCarga(app, NormalizationTypeCode.NAME_CATEGORY);
+    afterFirst = await countAll(prisma);
+  }, IMPORT_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await app.close();
+    database.cleanup();
+  });
+
+  it('devolve o tipo usado e cria os produtos com o tipo 2 e a chave categoria|nome', async () => {
+    const products = await prisma.product.findMany();
+
+    expect(first.normalizationType).toBe(NormalizationTypeCode.NAME_CATEGORY);
+    expect(products).toHaveLength(first.totals.created);
+    expect(first.totals.created).toBeGreaterThan(0);
+    expect(
+      products.every((p) => p.normalizationTypeId === NAME_CATEGORY_ID),
+    ).toBe(true);
+    expect(
+      products.filter(
+        (p) => p.normalizedKey !== normalizer.buildKey(p, NAME_CATEGORY_RULE),
+      ),
+    ).toEqual([]);
+    expect(first.totals.read).toBe(269);
+    await expectNoDuplicates(prisma);
+  });
+
+  it(
+    'reimportar o mesmo arquivo com NAME_CATEGORY é idempotente',
+    async () => {
+      const second = await importCarga(
+        app,
+        NormalizationTypeCode.NAME_CATEGORY,
+      );
+      const afterSecond = await countAll(prisma);
+
+      expect(afterSecond).toEqual(afterFirst);
+      expect(second.normalizationType).toBe(
+        NormalizationTypeCode.NAME_CATEGORY,
+      );
+      expect(second.totals).toMatchObject({ created: 0, linkedExisting: 0 });
+      expect(
+        second.totals.alreadyLinked + second.totals.duplicateSameSeller,
+      ).toBe(269);
+      await expectNoDuplicates(prisma);
+    },
+    IMPORT_TIMEOUT_MS,
+  );
+
+  it('grava a categoria com tentativa de SQL injection com o texto exato e a chave funciona', async () => {
+    const created = await importItems(
+      app,
+      [
+        {
+          Id: 'mal-1',
+          SellerName: 'Loja Maliciosa A',
+          Name: 'Produto Malicioso E2E',
+          Brand: 'Acme',
+          Category: MALICIOUS_CATEGORY,
+        },
+      ],
+      NormalizationTypeCode.NAME_CATEGORY,
+    );
+    const linked = await importItems(
+      app,
+      [
+        {
+          Id: 'mal-2',
+          SellerName: 'Loja Maliciosa B',
+          Name: 'produto  malicioso e2e',
+          Brand: 'Outra Marca',
+          Category: MALICIOUS_CATEGORY,
+        },
+      ],
+      NormalizationTypeCode.NAME_CATEGORY,
+    );
+
+    expect(created.items[0].outcome).toBe(ImportItemOutcome.CREATED);
+    expect(linked.items[0]).toMatchObject({
+      outcome: ImportItemOutcome.LINKED_EXISTING,
+      productId: created.items[0].productId,
+      matchedBy: MatchedBy.NORMALIZED_KEY,
+    });
+    const product = await prisma.product.findUniqueOrThrow({
+      where: { id: created.items[0].productId as number },
+    });
+    expect(product).toMatchObject({
+      category: MALICIOUS_CATEGORY,
+      normalizationTypeId: NAME_CATEGORY_ID,
+      normalizedKey: 'x; select 1; --|produto malicioso e2e',
+    });
+    expect(
+      await prisma.sellerProduct.count({
+        where: { category: MALICIOUS_CATEGORY },
+      }),
+    ).toBe(2);
+    await expectIntegrity(prisma);
+  });
+});
+
+describe('Catalog import e2e: produtos de tipos diferentes (banco fornecido)', () => {
+  let app: INestApplication;
+  let database: LegacyDatabase;
+  let prisma: PrismaService;
+  let legacy: {
+    id: number;
+    name: string;
+    brand: string | null;
+    category: string | null;
+  };
+
+  beforeAll(async () => {
+    database = LegacyDatabase.create();
+    await database.migrate();
+    app = await createApp(database.url);
+    prisma = app.get(PrismaService);
+    legacy = await prisma.product.findFirstOrThrow({
+      where: {
+        normalizationTypeId: NAME_BRAND_ID,
+        brand: { not: null },
+        category: { not: null },
+      },
+      orderBy: { id: 'asc' },
+    });
+  }, IMPORT_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await app.close();
+    await database.cleanup();
+  });
+
+  it('item que bate com um produto legado NAME_BRAND é ligado a ele mesmo importando com NAME_CATEGORY', async () => {
+    const productsBefore = await prisma.product.count();
+
+    const report = await importItems(
+      app,
+      [
+        {
+          Id: 'tipo-1',
+          SellerName: 'Loja Tipos A',
+          Name: legacy.name,
+          Brand: legacy.brand,
+          Category: 'Categoria Diferente E2E',
+        },
+      ],
+      NormalizationTypeCode.NAME_CATEGORY,
+    );
+
+    expect(report.normalizationType).toBe(NormalizationTypeCode.NAME_CATEGORY);
+    expect(report.items[0]).toMatchObject({
+      outcome: ImportItemOutcome.LINKED_EXISTING,
+      productId: legacy.id,
+      matchedBy: MatchedBy.NORMALIZED_KEY,
+    });
+    expect(await prisma.product.count()).toBe(productsBefore);
+  });
+
+  it('com produtos dos dois tipos batendo, vence o do tipo escolhido na importação', async () => {
+    const category = 'Categoria Prioridade E2E';
+    // Cria um produto NAME_CATEGORY com o mesmo nome do legado e outra marca.
+    const created = await importItems(
+      app,
+      [
+        {
+          Id: 'prio-1',
+          SellerName: 'Loja Prioridade A',
+          Name: legacy.name,
+          Brand: 'Marca Inexistente E2E',
+          Category: category,
+        },
+      ],
+      NormalizationTypeCode.NAME_CATEGORY,
+    );
+    const categoryProductId = created.items[0].productId;
+    expect(created.items[0].outcome).toBe(ImportItemOutcome.CREATED);
+    expect(categoryProductId).not.toBe(legacy.id);
+
+    // Este item bate com os dois: com o legado pela marca e com o novo pela categoria.
+    const item = {
+      Name: legacy.name,
+      Brand: legacy.brand,
+      Category: category,
+    };
+    const byCategory = await importItems(
+      app,
+      [{ ...item, Id: 'prio-2', SellerName: 'Loja Prioridade B' }],
+      NormalizationTypeCode.NAME_CATEGORY,
+    );
+    const byBrand = await importItems(app, [
+      { ...item, Id: 'prio-3', SellerName: 'Loja Prioridade C' },
+    ]);
+
+    expect(byCategory.items[0]).toMatchObject({
+      outcome: ImportItemOutcome.LINKED_EXISTING,
+      productId: categoryProductId,
+    });
+    expect(byBrand.normalizationType).toBe(NormalizationTypeCode.NAME_BRAND);
+    expect(byBrand.items[0]).toMatchObject({
+      outcome: ImportItemOutcome.LINKED_EXISTING,
+      productId: legacy.id,
+    });
+    await expectNoDuplicates(prisma);
   });
 });

@@ -7,6 +7,7 @@ import { LegacyDatabase } from '@test/helpers/legacy-database';
 import { configureApp } from '@shared/config/configure-app';
 import { PrismaService } from '@shared/prisma/prisma.service';
 import { ProductNormalizerService } from '@modules/catalog-import/services/product-normalizer.service';
+import { LEGACY_NORMALIZATION_TYPE_ID } from '@modules/normalization-types/consts/normalization-types.consts';
 
 interface ListBody {
   items: {
@@ -34,6 +35,8 @@ interface DetailBody {
 }
 
 const MALICIOUS_BRAND = "TestBrand'; SELECT 1; --";
+/** Regra dos produtos legados (`NAME_BRAND`): `<marca>|<nome>`. */
+const NAME_BRAND_RULE = { includesBrand: true, includesCategory: false };
 
 describe('Products e2e', () => {
   let app: INestApplication;
@@ -52,7 +55,11 @@ describe('Products e2e', () => {
         name,
         brand,
         category: 'Cat',
-        normalizedKey: normalizer.buildKey(brand, name),
+        normalizationTypeId: LEGACY_NORMALIZATION_TYPE_ID,
+        normalizedKey: normalizer.buildKey(
+          { name, brand, category: null },
+          NAME_BRAND_RULE,
+        ),
       },
     });
     ids[key] = product.id;

@@ -13,12 +13,19 @@ import { PrismaService } from '@shared/prisma/prisma.service';
 export class ProductRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByNormalizedKey(
+  /** A chave só é única dentro do tipo de normalização (D-111). */
+  async findByTypeAndKey(
+    normalizationTypeId: number,
     normalizedKey: string,
     tx?: Prisma.TransactionClient,
   ): Promise<ProductRecord | null> {
     return this.client(tx).product.findUnique({
-      where: { normalizedKey },
+      where: {
+        normalizationTypeId_normalizedKey: {
+          normalizationTypeId,
+          normalizedKey,
+        },
+      },
       select: PRODUCT_RECORD_SELECT,
     });
   }
@@ -32,6 +39,7 @@ export class ProductRepository {
         name: data.name,
         brand: data.brand,
         category: data.category,
+        normalizationTypeId: data.normalizationTypeId,
         normalizedKey: data.normalizedKey,
       },
       select: PRODUCT_RECORD_SELECT,
@@ -129,5 +137,6 @@ const PRODUCT_RECORD_SELECT = {
   name: true,
   brand: true,
   category: true,
+  normalizationTypeId: true,
   normalizedKey: true,
 } satisfies Prisma.ProductSelect;
